@@ -11,3 +11,6 @@ local.properties
 build/
 app/build/*
 !app/build/outputs/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
