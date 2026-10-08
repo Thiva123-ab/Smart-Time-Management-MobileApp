@@ -209,13 +209,18 @@ Provide friendly, actionable, encouraging, and concise markdown productivity adv
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.auto_awesome, color: AppColors.accentCyan, size: 20),
-            SizedBox(width: 8),
-            Text('AI Productivity Coach', style: TextStyle(fontWeight: FontWeight.bold)),
+            Icon(Icons.auto_awesome, color: isDark ? AppColors.accentCyan : AppColors.primary, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              'AI Productivity Coach',
+              style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimaryColor(context)),
+            ),
           ],
         ),
       ),
@@ -233,9 +238,16 @@ Provide friendly, actionable, encouraging, and concise markdown productivity adv
                 itemBuilder: (context, index) {
                   final prompt = _quickPrompts[index];
                   return ActionChip(
-                    label: Text(prompt, style: const TextStyle(fontSize: 12, color: AppColors.accentCyan)),
-                    backgroundColor: AppColors.surfaceDark,
-                    side: const BorderSide(color: AppColors.cardBorderDark),
+                    label: Text(
+                      prompt,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark ? AppColors.accentCyan : AppColors.primary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    backgroundColor: AppColors.surface(context),
+                    side: BorderSide(color: AppColors.cardBorder(context)),
                     onPressed: () => _sendMessage(prompt),
                   );
                 },
@@ -257,16 +269,16 @@ Provide friendly, actionable, encouraging, and concise markdown productivity adv
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.8),
                       decoration: BoxDecoration(
-                        color: msg.isUser ? AppColors.primary : AppColors.surfaceDark,
+                        color: msg.isUser ? AppColors.primary : AppColors.surface(context),
                         borderRadius: BorderRadius.circular(18),
                         border: Border.all(
-                          color: msg.isUser ? Colors.transparent : AppColors.cardBorderDark,
+                          color: msg.isUser ? Colors.transparent : AppColors.cardBorder(context),
                         ),
                       ),
                       child: Text(
                         msg.text,
                         style: TextStyle(
-                          color: msg.isUser ? Colors.white : AppColors.textPrimary,
+                          color: msg.isUser ? Colors.white : AppColors.textPrimaryColor(context),
                           fontSize: 14,
                           height: 1.4,
                         ),
@@ -278,33 +290,36 @@ Provide friendly, actionable, encouraging, and concise markdown productivity adv
             ),
 
             if (_isLoading)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
                 child: SizedBox(
                   width: 20,
                   height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accentCyan),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: isDark ? AppColors.accentCyan : AppColors.primary,
+                  ),
                 ),
               ),
 
             // Bottom Input bar
             Container(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-              decoration: const BoxDecoration(
-                color: AppColors.surfaceDark,
-                border: Border(top: BorderSide(color: AppColors.cardBorderDark, width: 0.5)),
+              decoration: BoxDecoration(
+                color: AppColors.surface(context),
+                border: Border(top: BorderSide(color: AppColors.cardBorder(context), width: 0.5)),
               ),
               child: Row(
                 children: [
                   Expanded(
                     child: TextField(
                       controller: _inputController,
-                      style: const TextStyle(color: AppColors.textPrimary),
+                      style: TextStyle(color: AppColors.textPrimaryColor(context)),
                       decoration: InputDecoration(
                         hintText: 'Ask coach about your habits, schedule...',
-                        hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 13),
+                        hintStyle: TextStyle(color: AppColors.textMutedColor(context), fontSize: 13),
                         filled: true,
-                        fillColor: AppColors.surfaceVariantDark,
+                        fillColor: AppColors.surfaceVariant(context),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(24),
