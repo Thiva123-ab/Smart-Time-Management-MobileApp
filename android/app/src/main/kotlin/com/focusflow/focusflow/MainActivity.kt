@@ -139,15 +139,33 @@ class MainActivity : FlutterActivity() {
             // Filter out system framework package
             if (pkg == "android" || pkg == packageName) continue
 
-            var appName = pkg
+            var appName: String? = null
             try {
                 val appInfo = pm.getApplicationInfo(pkg, 0)
-                appName = pm.getApplicationLabel(appInfo).toString()
-            } catch (_: PackageManager.NameNotFoundException) {
-                // If app is uninstalled or system hidden, derive readable name
-                val segments = pkg.split(".")
-                if (segments.isNotEmpty()) {
-                    appName = segments.last().replaceFirstChar { it.uppercase() }
+                val label = pm.getApplicationLabel(appInfo).toString()
+                if (label.isNotBlank() && label != pkg) {
+                    appName = label
+                }
+            } catch (_: Exception) {}
+
+            if (appName == null || appName.equals("katana", ignoreCase = true)) {
+                val knownNames = mapOf(
+                    "com.facebook.katana" to "Facebook",
+                    "com.facebook.orca" to "Messenger",
+                    "com.whatsapp" to "WhatsApp",
+                    "com.google.android.youtube" to "YouTube",
+                    "com.instagram.android" to "Instagram",
+                    "com.android.chrome" to "Chrome",
+                    "com.google.android.apps.messaging" to "Messages",
+                    "com.zhiliaoapp.musically" to "TikTok",
+                    "org.telegram.messenger" to "Telegram",
+                    "com.twitter.android" to "X (Twitter)"
+                )
+                appName = knownNames[pkg] ?: run {
+                    val segments = pkg.split(".")
+                    if (segments.isNotEmpty()) {
+                        segments.last().replaceFirstChar { it.uppercase() }
+                    } else pkg
                 }
             }
 
