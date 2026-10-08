@@ -148,7 +148,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
             // Grid of Badges
             GridView.builder(
               shrinkWrap: true,
-              physics: const NeverScrollableScrollButtonParams(),
+              physics: const NeverScrollableScrollPhysics(),
               itemCount: _achievements.length,
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,

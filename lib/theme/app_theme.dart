@@ -42,10 +42,10 @@ class AppTheme {
         onPrimary: Colors.white,
         onSurface: AppColors.textPrimary,
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: AppColors.surfaceDark,
         elevation: 0,
-        shape: RoundedCornerShape(18),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       ),
       appBarTheme: const AppBarTheme(
         backgroundColor: AppColors.backgroundDark,

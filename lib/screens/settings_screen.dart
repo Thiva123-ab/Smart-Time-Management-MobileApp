@@ -33,7 +33,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
-    final hasPerm = await UsageTrackingService.hasUsagePermission();
+    final hasPerm = await UsageTrackingService.hasPermission();
 
     setState(() {
       _hasPermission = hasPerm;
@@ -257,8 +257,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       ),
                       onPressed: () async {
-                        await UsageTrackingService.requestUsagePermission();
-                        final granted = await UsageTrackingService.hasUsagePermission();
+                        await UsageTrackingService.openPermissionSettings();
+                        final granted = await UsageTrackingService.hasPermission();
                         setState(() => _hasPermission = granted);
                       },
                       child: const Text('Enable', style: TextStyle(fontSize: 12)),
