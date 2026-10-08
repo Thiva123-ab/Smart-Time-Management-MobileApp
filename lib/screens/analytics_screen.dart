@@ -82,6 +82,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       );
     }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final prodRatio = _totalMinutes > 0 ? (_productiveMinutes / _totalMinutes * 100).toInt() : 0;
     final avgScore = (_weekScores.map((e) => e['score'] as int).reduce((a, b) => a + b) / _weekScores.length).round();
 
@@ -91,17 +92,23 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           children: [
             // Header
-            const Text('Productivity Analytics', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            Text(
+              'Productivity Analytics',
+              style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.textPrimaryColor(context)),
+            ),
             const SizedBox(height: 4),
-            const Text('Comprehensive trends and habit insights', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+            Text(
+              'Comprehensive trends and habit insights',
+              style: TextStyle(color: AppColors.textSecondaryColor(context), fontSize: 13),
+            ),
             const SizedBox(height: 16),
 
             // Timeframe Selector
             Container(
               decoration: BoxDecoration(
-                color: AppColors.surfaceDark,
+                color: AppColors.surface(context),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.cardBorderDark),
+                border: Border.all(color: AppColors.cardBorder(context)),
               ),
               child: Row(
                 children: [
@@ -117,9 +124,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
-                color: AppColors.surfaceDark,
+                color: AppColors.surface(context),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.cardBorderDark),
+                border: Border.all(color: AppColors.cardBorder(context)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -127,14 +134,24 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('7-Day Score Trend', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      Text(
+                        '7-Day Score Trend',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimaryColor(context)),
+                      ),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.2),
+                          color: AppColors.primary.withOpacity(isDark ? 0.2 : 0.1),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: Text('Avg: $avgScore/100', style: const TextStyle(color: AppColors.accentCyan, fontSize: 12, fontWeight: FontWeight.bold)),
+                        child: Text(
+                          'Avg: $avgScore/100',
+                          style: TextStyle(
+                            color: isDark ? AppColors.accentCyan : AppColors.primary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -150,13 +167,23 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                       return Column(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          Text('$score', style: TextStyle(fontSize: 10, color: isToday ? AppColors.accentCyan : AppColors.textMuted)),
+                          Text(
+                            '$score',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: isToday
+                                  ? (isDark ? AppColors.accentCyan : AppColors.primary)
+                                  : AppColors.textMutedColor(context),
+                            ),
+                          ),
                           const SizedBox(height: 6),
                           Container(
                             width: 22,
                             height: height,
                             decoration: BoxDecoration(
-                              color: isToday ? AppColors.accentCyan : (score >= 75 ? AppColors.primary : AppColors.surfaceVariantDark),
+                              color: isToday
+                                  ? (isDark ? AppColors.accentCyan : AppColors.primary)
+                                  : (score >= 75 ? AppColors.primary : AppColors.surfaceVariant(context)),
                               borderRadius: BorderRadius.circular(6),
                             ),
                           ),
@@ -166,7 +193,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                              color: isToday ? AppColors.accentCyan : AppColors.textSecondary,
+                              color: isToday
+                                  ? (isDark ? AppColors.accentCyan : AppColors.primary)
+                                  : AppColors.textSecondaryColor(context),
                             ),
                           ),
                         ],
@@ -184,15 +213,19 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 Expanded(
                   child: Container(
                     padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(color: AppColors.surfaceDark, borderRadius: BorderRadius.circular(16)),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface(context),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.cardBorder(context)),
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Productive Ratio', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                        Text('Productive Ratio', style: TextStyle(color: AppColors.textSecondaryColor(context), fontSize: 12)),
                         const SizedBox(height: 6),
                         Text('$prodRatio%', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.success)),
                         const SizedBox(height: 4),
-                        Text(_formatTime(_productiveMinutes), style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                        Text(_formatTime(_productiveMinutes), style: TextStyle(color: AppColors.textMutedColor(context), fontSize: 11)),
                       ],
                     ),
                   ),
@@ -201,15 +234,19 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 Expanded(
                   child: Container(
                     padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(color: AppColors.surfaceDark, borderRadius: BorderRadius.circular(16)),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface(context),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.cardBorder(context)),
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Distractions', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                        Text('Distractions', style: TextStyle(color: AppColors.textSecondaryColor(context), fontSize: 12)),
                         const SizedBox(height: 6),
                         Text('${100 - prodRatio}%', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.danger)),
                         const SizedBox(height: 4),
-                        Text(_formatTime(_distractingMinutes), style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                        Text(_formatTime(_distractingMinutes), style: TextStyle(color: AppColors.textMutedColor(context), fontSize: 11)),
                       ],
                     ),
                   ),
@@ -219,7 +256,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             const SizedBox(height: 22),
 
             // Category Breakdown
-            const Text('Time Breakdown by Category', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            Text(
+              'Time Breakdown by Category',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimaryColor(context)),
+            ),
             const SizedBox(height: 12),
             ..._categoryTotals.entries.map((entry) {
               final cat = entry.key;
@@ -230,9 +270,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 margin: const EdgeInsets.only(bottom: 12),
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceDark,
+                  color: AppColors.surface(context),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.cardBorderDark),
+                  border: Border.all(color: AppColors.cardBorder(context)),
                 ),
                 child: Column(
                   children: [
@@ -254,12 +294,12 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            Text(cat, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 14)),
+                            Text(cat, style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimaryColor(context), fontSize: 14)),
                           ],
                         ),
                         Text(
                           '${_formatTime(minutes)} (${(pct * 100).toInt()}%)',
-                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.bold),
+                          style: TextStyle(color: AppColors.textSecondaryColor(context), fontSize: 12, fontWeight: FontWeight.bold),
                         ),
                       ],
                     ),
@@ -268,7 +308,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                       borderRadius: BorderRadius.circular(4),
                       child: LinearProgressIndicator(
                         value: pct,
-                        backgroundColor: AppColors.surfaceVariantDark,
+                        backgroundColor: AppColors.surfaceVariant(context),
                         valueColor: AlwaysStoppedAnimation<Color>(
                           AppCategoryManager.isProductive(cat)
                               ? AppColors.success
@@ -304,7 +344,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           child: Text(
             title,
             style: TextStyle(
-              color: isSelected ? Colors.white : AppColors.textSecondary,
+              color: isSelected ? Colors.white : AppColors.textSecondaryColor(context),
               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               fontSize: 13,
             ),

@@ -103,154 +103,193 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return const Center(child: CircularProgressIndicator(color: AppColors.primary));
     }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       body: SafeArea(
         child: RefreshIndicator(
           color: AppColors.accentCyan,
           onRefresh: _loadData,
           child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          children: [
-            // 1. Header
-            Text(_greeting, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-            const SizedBox(height: 4),
-            const Text('Take Control of Your Day', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
-            const SizedBox(height: 20),
-
-            // 2. Productivity Score Card
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceDark,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: AppColors.cardBorderDark),
-                gradient: LinearGradient(
-                  colors: [AppColors.primary.withOpacity(0.15), AppColors.accentCyan.withOpacity(0.05)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            children: [
+              // 1. Header
+              Text(
+                _greeting,
+                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.textPrimaryColor(context)),
               ),
-              child: Column(
-                children: [
-                  const Text('PRODUCTIVITY SCORE', style: TextStyle(color: AppColors.accentCyan, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-                  const SizedBox(height: 16),
-                  Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      SizedBox(
-                        width: 110,
-                        height: 110,
-                        child: CircularProgressIndicator(
-                          value: _score.totalScore / 100,
-                          strokeWidth: 8,
-                          backgroundColor: AppColors.cardBorderDark,
-                          valueColor: AlwaysStoppedAnimation<Color>(_score.totalScore >= 75 ? AppColors.success : AppColors.primary),
-                        ),
-                      ),
-                      Column(
-                        children: [
-                          Text('${_score.totalScore}', style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                          const Text('/ 100', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  Text(_score.advice, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                ],
+              const SizedBox(height: 4),
+              Text(
+                'Take Control of Your Day',
+                style: TextStyle(color: AppColors.textSecondaryColor(context), fontSize: 14),
               ),
-            ),
-            const SizedBox(height: 18),
+              const SizedBox(height: 20),
 
-            // 3. Screen Time Breakdown Cards
-            Row(
-              children: [
-                Expanded(child: _metricCard('Screen Time', _formatTime(_totalMinutes), AppColors.info)),
-                const SizedBox(width: 10),
-                Expanded(child: _metricCard('Productive', _formatTime(_productiveMinutes), AppColors.success)),
-                const SizedBox(width: 10),
-                Expanded(child: _metricCard('Distracting', _formatTime(_distractingMinutes), AppColors.danger)),
-              ],
-            ),
-            const SizedBox(height: 18),
-
-            // 4. Start Focus Button Card
-            InkWell(
-              onTap: widget.onStartFocus,
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                padding: const EdgeInsets.all(18),
+              // 2. Productivity Score Card
+              Container(
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(20),
+                  color: AppColors.surface(context),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: AppColors.cardBorder(context)),
+                  gradient: LinearGradient(
+                    colors: [
+                      AppColors.primary.withOpacity(isDark ? 0.15 : 0.08),
+                      AppColors.accentCyan.withOpacity(isDark ? 0.05 : 0.04),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                 ),
-                child: Row(
+                child: Column(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle),
-                      child: const Icon(Icons.play_arrow, color: Colors.white, size: 26),
-                    ),
-                    const SizedBox(width: 14),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Start Focus Session', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                          Text('Block distractions & enter flow state', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                        ],
+                    Text(
+                      'PRODUCTIVITY SCORE',
+                      style: TextStyle(
+                        color: isDark ? AppColors.accentCyan : AppColors.primary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
                       ),
                     ),
-                    const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 16),
+                    const SizedBox(height: 16),
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        SizedBox(
+                          width: 110,
+                          height: 110,
+                          child: CircularProgressIndicator(
+                            value: _score.totalScore / 100,
+                            strokeWidth: 8,
+                            backgroundColor: AppColors.surfaceVariant(context),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              _score.totalScore >= 75 ? AppColors.success : AppColors.primary,
+                            ),
+                          ),
+                        ),
+                        Column(
+                          children: [
+                            Text(
+                              '${_score.totalScore}',
+                              style: TextStyle(
+                                fontSize: 32,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textPrimaryColor(context),
+                              ),
+                            ),
+                            Text(
+                              '/ 100',
+                              style: TextStyle(fontSize: 11, color: AppColors.textSecondaryColor(context)),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      _score.advice,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: AppColors.textSecondaryColor(context), fontSize: 12),
+                    ),
                   ],
                 ),
               ),
-            ),
-            const SizedBox(height: 22),
+              const SizedBox(height: 18),
 
-            // 5. Today's Goals
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text("Today's Goals", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                TextButton(
-                  onPressed: widget.onViewGoals,
-                  child: const Text('View All', style: TextStyle(color: AppColors.accentCyan)),
+              // 3. Screen Time Breakdown Cards
+              Row(
+                children: [
+                  Expanded(child: _metricCard('Screen Time', _formatTime(_totalMinutes), AppColors.info)),
+                  const SizedBox(width: 10),
+                  Expanded(child: _metricCard('Productive', _formatTime(_productiveMinutes), AppColors.success)),
+                  const SizedBox(width: 10),
+                  Expanded(child: _metricCard('Distracting', _formatTime(_distractingMinutes), AppColors.danger)),
+                ],
+              ),
+              const SizedBox(height: 18),
+
+              // 4. Start Focus Button Card
+              InkWell(
+                onTap: widget.onStartFocus,
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle),
+                        child: const Icon(Icons.play_arrow, color: Colors.white, size: 26),
+                      ),
+                      const SizedBox(width: 14),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Start Focus Session', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                            Text('Block distractions & enter flow state', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 16),
+                    ],
+                  ),
                 ),
-              ],
-            ),
-            if (_goals.isEmpty)
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: AppColors.surfaceDark, borderRadius: BorderRadius.circular(16)),
-                child: const Text('No goals yet today. Tap View All to create one!', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
-              )
-            else
-              ..._goals.take(3).map((g) => _goalItem(g)),
-            const SizedBox(height: 22),
+              ),
+              const SizedBox(height: 22),
 
-            // 6. Top Apps
-            const Text('Top Apps Today', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-            const SizedBox(height: 12),
-            ..._apps.take(5).map((app) => _appItem(app)),
-          ],
+              // 5. Today's Goals
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text("Today's Goals", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimaryColor(context))),
+                  TextButton(
+                    onPressed: widget.onViewGoals,
+                    child: Text('View All', style: TextStyle(color: isDark ? AppColors.accentCyan : AppColors.primary)),
+                  ),
+                ],
+              ),
+              if (_goals.isEmpty)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(16)),
+                  child: Text('No goals yet today. Tap View All to create one!', style: TextStyle(color: AppColors.textMutedColor(context), fontSize: 13)),
+                )
+              else
+                ..._goals.take(3).map((g) => _goalItem(g)),
+              const SizedBox(height: 22),
+
+              // 6. Top Apps
+              Text('Top Apps Today', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimaryColor(context))),
+              const SizedBox(height: 12),
+              ..._apps.take(5).map((app) => _appItem(app)),
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
   }
 
   Widget _metricCard(String title, String value, Color color) {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: AppColors.surfaceDark, borderRadius: BorderRadius.circular(16)),
+      decoration: BoxDecoration(
+        color: AppColors.surface(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.cardBorder(context)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
           const SizedBox(height: 8),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary)),
-          Text(title, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+          Text(value, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimaryColor(context))),
+          Text(title, style: TextStyle(fontSize: 11, color: AppColors.textSecondaryColor(context))),
         ],
       ),
     );
@@ -259,25 +298,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _goalItem(Goal goal) {
     final isDone = goal.status == 'COMPLETED';
     final progress = goal.targetMinutes > 0 ? (goal.completedMinutes / goal.targetMinutes).clamp(0.0, 1.0) : 0.0;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: AppColors.surfaceDark, borderRadius: BorderRadius.circular(14)),
+      decoration: BoxDecoration(
+        color: AppColors.surface(context),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.cardBorder(context)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(goal.title, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 14)),
-              Text(isDone ? 'Completed' : '${(progress * 100).toInt()}%', style: TextStyle(color: isDone ? AppColors.success : AppColors.accentCyan, fontSize: 12)),
+              Text(goal.title, style: TextStyle(color: AppColors.textPrimaryColor(context), fontWeight: FontWeight.bold, fontSize: 14)),
+              Text(
+                isDone ? 'Completed' : '${(progress * 100).toInt()}%',
+                style: TextStyle(color: isDone ? AppColors.success : (isDark ? AppColors.accentCyan : AppColors.primary), fontSize: 12),
+              ),
             ],
           ),
           const SizedBox(height: 8),
           LinearProgressIndicator(
             value: progress,
-            backgroundColor: AppColors.cardBorderDark,
+            backgroundColor: AppColors.surfaceVariant(context),
             valueColor: AlwaysStoppedAnimation<Color>(isDone ? AppColors.success : AppColors.primary),
             borderRadius: BorderRadius.circular(4),
           ),
@@ -287,27 +334,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _appItem(AppUsage app) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: AppColors.surfaceDark, borderRadius: BorderRadius.circular(14)),
+      decoration: BoxDecoration(
+        color: AppColors.surface(context),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.cardBorder(context)),
+      ),
       child: Row(
         children: [
           CircleAvatar(
-            backgroundColor: AppColors.surfaceVariantDark,
-            child: Text(app.appName.isNotEmpty ? app.appName[0] : '?', style: const TextStyle(color: AppColors.accentCyan, fontWeight: FontWeight.bold)),
+            backgroundColor: AppColors.surfaceVariant(context),
+            child: Text(
+              app.appName.isNotEmpty ? app.appName[0] : '?',
+              style: TextStyle(color: isDark ? AppColors.accentCyan : AppColors.primary, fontWeight: FontWeight.bold),
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(app.appName, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 14)),
-                Text('${app.category} • ${app.launchCount} opens', style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                Text(app.appName, style: TextStyle(color: AppColors.textPrimaryColor(context), fontWeight: FontWeight.bold, fontSize: 14)),
+                Text('${app.category} • ${app.launchCount} opens', style: TextStyle(color: AppColors.textMutedColor(context), fontSize: 11)),
               ],
             ),
           ),
-          Text(_formatTime(app.durationMinutes), style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 14)),
+          Text(_formatTime(app.durationMinutes), style: TextStyle(color: AppColors.textPrimaryColor(context), fontWeight: FontWeight.bold, fontSize: 14)),
         ],
       ),
     );

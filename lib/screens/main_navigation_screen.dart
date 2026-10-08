@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
+import '../theme/theme_provider.dart';
 import 'dashboard_screen.dart';
 import 'usage_screen.dart';
 import 'focus_screen.dart';
@@ -33,6 +35,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+
     final List<Widget> screens = [
       DashboardScreen(
         onStartFocus: _navigateToFocus,
@@ -57,13 +62,25 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               child: const Icon(Icons.bolt, color: Colors.white, size: 20),
             ),
             const SizedBox(width: 10),
-            const Text(
+            Text(
               'FocusFlow',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: AppColors.textPrimary),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+                color: AppColors.textPrimaryColor(context),
+              ),
             ),
           ],
         ),
         actions: [
+          IconButton(
+            icon: Icon(
+              isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+              color: isDark ? AppColors.accentCyan : AppColors.primary,
+            ),
+            tooltip: isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode',
+            onPressed: () => themeProvider.toggleTheme(),
+          ),
           IconButton(
             icon: const Icon(Icons.auto_awesome, color: AppColors.accentCyan),
             tooltip: 'AI Coach',
@@ -85,7 +102,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             },
           ),
           IconButton(
-            icon: const Icon(Icons.settings_outlined, color: AppColors.textSecondary),
+            icon: Icon(Icons.settings_outlined, color: AppColors.textSecondaryColor(context)),
             tooltip: 'Settings',
             onPressed: () {
               Navigator.push(
@@ -94,7 +111,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               );
             },
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
         ],
       ),
       body: IndexedStack(
@@ -102,38 +119,38 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         children: screens,
       ),
       bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          border: Border(top: BorderSide(color: AppColors.cardBorderDark, width: 0.5)),
+        decoration: BoxDecoration(
+          border: Border(top: BorderSide(color: AppColors.cardBorder(context), width: 0.5)),
         ),
         child: NavigationBar(
           selectedIndex: _currentIndex,
           onDestinationSelected: _onTabTapped,
-          backgroundColor: AppColors.surfaceDark,
-          indicatorColor: AppColors.primary.withOpacity(0.2),
-          destinations: const [
+          backgroundColor: AppColors.surface(context),
+          indicatorColor: AppColors.primary.withOpacity(isDark ? 0.2 : 0.12),
+          destinations: [
             NavigationDestination(
-              icon: Icon(Icons.dashboard_outlined),
-              selectedIcon: Icon(Icons.dashboard, color: AppColors.accentCyan),
+              icon: const Icon(Icons.dashboard_outlined),
+              selectedIcon: Icon(Icons.dashboard, color: isDark ? AppColors.accentCyan : AppColors.primary),
               label: 'Home',
             ),
             NavigationDestination(
-              icon: Icon(Icons.pie_chart_outline),
-              selectedIcon: Icon(Icons.pie_chart, color: AppColors.accentCyan),
+              icon: const Icon(Icons.pie_chart_outline),
+              selectedIcon: Icon(Icons.pie_chart, color: isDark ? AppColors.accentCyan : AppColors.primary),
               label: 'Usage',
             ),
             NavigationDestination(
-              icon: Icon(Icons.timer_outlined),
-              selectedIcon: Icon(Icons.timer, color: AppColors.accentCyan),
+              icon: const Icon(Icons.timer_outlined),
+              selectedIcon: Icon(Icons.timer, color: isDark ? AppColors.accentCyan : AppColors.primary),
               label: 'Focus',
             ),
             NavigationDestination(
-              icon: Icon(Icons.flag_outlined),
-              selectedIcon: Icon(Icons.flag, color: AppColors.accentCyan),
+              icon: const Icon(Icons.flag_outlined),
+              selectedIcon: Icon(Icons.flag, color: isDark ? AppColors.accentCyan : AppColors.primary),
               label: 'Goals',
             ),
             NavigationDestination(
-              icon: Icon(Icons.bar_chart_outlined),
-              selectedIcon: Icon(Icons.bar_chart, color: AppColors.accentCyan),
+              icon: const Icon(Icons.bar_chart_outlined),
+              selectedIcon: Icon(Icons.bar_chart, color: isDark ? AppColors.accentCyan : AppColors.primary),
               label: 'Analytics',
             ),
           ],

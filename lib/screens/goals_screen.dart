@@ -3,7 +3,6 @@ import '../theme/app_theme.dart';
 import '../data/local/database_helper.dart';
 import '../data/models/goal.dart';
 import '../data/models/time_budget.dart';
-import '../data/models/app_usage.dart';
 import '../domain/app_category_manager.dart';
 import '../services/usage_tracking_service.dart';
 
@@ -73,9 +72,9 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          backgroundColor: AppColors.surfaceDark,
+          backgroundColor: AppColors.surface(context),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text('Add Daily Goal', style: TextStyle(color: AppColors.textPrimary)),
+          title: Text('Add Daily Goal', style: TextStyle(color: AppColors.textPrimaryColor(context))),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -84,23 +83,23 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
                 TextField(
                   controller: titleController,
                   autofocus: true,
-                  style: const TextStyle(color: AppColors.textPrimary),
+                  style: TextStyle(color: AppColors.textPrimaryColor(context)),
                   decoration: InputDecoration(
                     labelText: 'Goal Title',
                     hintText: 'e.g. Flutter Study Session',
-                    labelStyle: const TextStyle(color: AppColors.textSecondary),
-                    hintStyle: const TextStyle(color: AppColors.textMuted),
+                    labelStyle: TextStyle(color: AppColors.textSecondaryColor(context)),
+                    hintStyle: TextStyle(color: AppColors.textMutedColor(context)),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
                 const SizedBox(height: 14),
                 DropdownButtonFormField<String>(
                   value: selectedCategory,
-                  dropdownColor: AppColors.surfaceDark,
-                  style: const TextStyle(color: AppColors.textPrimary),
+                  dropdownColor: AppColors.surface(context),
+                  style: TextStyle(color: AppColors.textPrimaryColor(context)),
                   decoration: InputDecoration(
                     labelText: 'Category',
-                    labelStyle: const TextStyle(color: AppColors.textSecondary),
+                    labelStyle: TextStyle(color: AppColors.textSecondaryColor(context)),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   items: categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
@@ -112,12 +111,12 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
                 TextField(
                   controller: minutesController,
                   keyboardType: TextInputType.number,
-                  style: const TextStyle(color: AppColors.textPrimary),
+                  style: TextStyle(color: AppColors.textPrimaryColor(context)),
                   decoration: InputDecoration(
                     labelText: 'Target Duration',
                     suffixText: 'mins',
-                    suffixStyle: const TextStyle(color: AppColors.textSecondary),
-                    labelStyle: const TextStyle(color: AppColors.textSecondary),
+                    suffixStyle: TextStyle(color: AppColors.textSecondaryColor(context)),
+                    labelStyle: TextStyle(color: AppColors.textSecondaryColor(context)),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
@@ -127,7 +126,7 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted)),
+              child: Text('Cancel', style: TextStyle(color: AppColors.textMutedColor(context))),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -166,26 +165,26 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surfaceDark,
+        backgroundColor: AppColors.surface(context),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('${budget.category} Budget', style: const TextStyle(color: AppColors.textPrimary)),
+        title: Text('${budget.category} Budget', style: TextStyle(color: AppColors.textPrimaryColor(context))),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
+            Text(
               'Set maximum daily budget in minutes:',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              style: TextStyle(color: AppColors.textSecondaryColor(context), fontSize: 13),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: controller,
               keyboardType: TextInputType.number,
-              style: const TextStyle(color: AppColors.textPrimary),
+              style: TextStyle(color: AppColors.textPrimaryColor(context)),
               decoration: InputDecoration(
                 labelText: 'Limit (Minutes)',
                 suffixText: 'mins',
-                suffixStyle: const TextStyle(color: AppColors.textSecondary),
-                labelStyle: const TextStyle(color: AppColors.textSecondary),
+                suffixStyle: TextStyle(color: AppColors.textSecondaryColor(context)),
+                labelStyle: TextStyle(color: AppColors.textSecondaryColor(context)),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
@@ -194,7 +193,7 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted)),
+            child: Text('Cancel', style: TextStyle(color: AppColors.textMutedColor(context))),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -249,6 +248,7 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
       );
     }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final completedCount = _goals.where((g) => g.status == 'COMPLETED').length;
     final goalPercent = _goals.isNotEmpty ? (completedCount / _goals.length) : 0.0;
 
@@ -262,15 +262,15 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Column(
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'Goals & Budgets',
-                        style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                        style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.textPrimaryColor(context)),
                       ),
-                      SizedBox(height: 4),
-                      Text('Stay disciplined and on track', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                      const SizedBox(height: 4),
+                      Text('Stay disciplined and on track', style: TextStyle(color: AppColors.textSecondaryColor(context), fontSize: 13)),
                     ],
                   ),
                   IconButton(
@@ -289,9 +289,9 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
             // Tab Bar
             TabBar(
               controller: _tabController,
-              indicatorColor: AppColors.accentCyan,
-              labelColor: AppColors.accentCyan,
-              unselectedLabelColor: AppColors.textSecondary,
+              indicatorColor: isDark ? AppColors.accentCyan : AppColors.primary,
+              labelColor: isDark ? AppColors.accentCyan : AppColors.primary,
+              unselectedLabelColor: AppColors.textSecondaryColor(context),
               indicatorWeight: 3,
               tabs: const [
                 Tab(text: 'Daily Goals'),
@@ -312,9 +312,9 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
                       Container(
                         padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(
-                          color: AppColors.surfaceDark,
+                          color: AppColors.surface(context),
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: AppColors.cardBorderDark),
+                          border: Border.all(color: AppColors.cardBorder(context)),
                         ),
                         child: Row(
                           children: [
@@ -327,12 +327,12 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
                                   CircularProgressIndicator(
                                     value: goalPercent,
                                     strokeWidth: 6,
-                                    backgroundColor: AppColors.cardBorderDark,
+                                    backgroundColor: AppColors.surfaceVariant(context),
                                     valueColor: const AlwaysStoppedAnimation<Color>(AppColors.success),
                                   ),
                                   Text(
                                     '${(goalPercent * 100).toInt()}%',
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimaryColor(context)),
                                   ),
                                 ],
                               ),
@@ -344,14 +344,14 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
                                 children: [
                                   Text(
                                     '$completedCount of ${_goals.length} Goals Done',
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary),
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimaryColor(context)),
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
                                     completedCount == _goals.length && _goals.isNotEmpty
                                         ? 'All goals finished! Outstanding work! 🔥'
                                         : 'Keep going, make every hour count!',
-                                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                                    style: TextStyle(color: AppColors.textSecondaryColor(context), fontSize: 12),
                                   ),
                                 ],
                               ),
@@ -367,11 +367,11 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
                           alignment: Alignment.center,
                           child: Column(
                             children: [
-                              Icon(Icons.flag_outlined, size: 48, color: AppColors.textMuted.withOpacity(0.5)),
+                              Icon(Icons.flag_outlined, size: 48, color: AppColors.textMutedColor(context).withOpacity(0.5)),
                               const SizedBox(height: 12),
-                              const Text('No goals set for today', style: TextStyle(color: AppColors.textMuted, fontSize: 15)),
+                              Text('No goals set for today', style: TextStyle(color: AppColors.textMutedColor(context), fontSize: 15)),
                               const SizedBox(height: 6),
-                              const Text('Tap "+" at the top to add your first goal', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                              Text('Tap "+" at the top to add your first goal', style: TextStyle(color: AppColors.textMutedColor(context), fontSize: 12)),
                             ],
                           ),
                         )
@@ -383,10 +383,10 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
                             margin: const EdgeInsets.only(bottom: 12),
                             padding: const EdgeInsets.all(14),
                             decoration: BoxDecoration(
-                              color: AppColors.surfaceDark,
+                              color: AppColors.surface(context),
                               borderRadius: BorderRadius.circular(16),
                               border: Border.all(
-                                color: isDone ? AppColors.success.withOpacity(0.5) : AppColors.cardBorderDark,
+                                color: isDone ? AppColors.success.withOpacity(0.5) : AppColors.cardBorder(context),
                               ),
                             ),
                             child: Column(
@@ -397,7 +397,7 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
                                     IconButton(
                                       icon: Icon(
                                         isDone ? Icons.check_circle : Icons.radio_button_unchecked,
-                                        color: isDone ? AppColors.success : AppColors.textSecondary,
+                                        color: isDone ? AppColors.success : AppColors.textSecondaryColor(context),
                                         size: 24,
                                       ),
                                       onPressed: () => _toggleGoal(g),
@@ -412,20 +412,20 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
                                             style: TextStyle(
                                               fontSize: 15,
                                               fontWeight: FontWeight.bold,
-                                              color: isDone ? AppColors.textMuted : AppColors.textPrimary,
+                                              color: isDone ? AppColors.textMutedColor(context) : AppColors.textPrimaryColor(context),
                                               decoration: isDone ? TextDecoration.lineThrough : null,
                                             ),
                                           ),
                                           const SizedBox(height: 2),
                                           Text(
                                             '${g.category} • Target: ${_formatTime(g.targetMinutes)}',
-                                            style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                                            style: TextStyle(fontSize: 11, color: AppColors.textMutedColor(context)),
                                           ),
                                         ],
                                       ),
                                     ),
                                     IconButton(
-                                      icon: const Icon(Icons.delete_outline, size: 20, color: AppColors.textMuted),
+                                      icon: Icon(Icons.delete_outline, size: 20, color: AppColors.textMutedColor(context)),
                                       onPressed: () {
                                         if (g.id != null) _deleteGoal(g.id!);
                                       },
@@ -437,7 +437,7 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
                                   borderRadius: BorderRadius.circular(4),
                                   child: LinearProgressIndicator(
                                     value: isDone ? 1.0 : progress,
-                                    backgroundColor: AppColors.surfaceVariantDark,
+                                    backgroundColor: AppColors.surfaceVariant(context),
                                     valueColor: AlwaysStoppedAnimation<Color>(
                                       isDone ? AppColors.success : AppColors.primary,
                                     ),
@@ -455,9 +455,9 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
                   ListView(
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                     children: [
-                      const Text(
+                      Text(
                         'Set maximum daily limits on distraction categories to keep your focus intact.',
-                        style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                        style: TextStyle(color: AppColors.textSecondaryColor(context), fontSize: 13),
                       ),
                       const SizedBox(height: 16),
                       ..._budgets.map((b) {
@@ -469,10 +469,10 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
                           margin: const EdgeInsets.only(bottom: 14),
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: AppColors.surfaceDark,
+                            color: AppColors.surface(context),
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: isExceeded ? AppColors.danger.withOpacity(0.6) : AppColors.cardBorderDark,
+                              color: isExceeded ? AppColors.danger.withOpacity(0.6) : AppColors.cardBorder(context),
                             ),
                           ),
                           child: Column(
@@ -483,7 +483,7 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
                                 children: [
                                   Text(
                                     b.category,
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimary),
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimaryColor(context)),
                                   ),
                                   Row(
                                     children: [
@@ -492,12 +492,12 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
                                         style: TextStyle(
                                           fontWeight: FontWeight.bold,
                                           fontSize: 13,
-                                          color: isExceeded ? AppColors.danger : AppColors.textSecondary,
+                                          color: isExceeded ? AppColors.danger : AppColors.textSecondaryColor(context),
                                         ),
                                       ),
                                       const SizedBox(width: 8),
                                       IconButton(
-                                        icon: const Icon(Icons.edit_outlined, size: 18, color: AppColors.accentCyan),
+                                        icon: Icon(Icons.edit_outlined, size: 18, color: isDark ? AppColors.accentCyan : AppColors.primary),
                                         padding: EdgeInsets.zero,
                                         constraints: const BoxConstraints(),
                                         onPressed: () => _showSetBudgetDialog(b),
@@ -511,7 +511,7 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
                                 borderRadius: BorderRadius.circular(4),
                                 child: LinearProgressIndicator(
                                   value: ratio,
-                                  backgroundColor: AppColors.surfaceVariantDark,
+                                  backgroundColor: AppColors.surfaceVariant(context),
                                   valueColor: AlwaysStoppedAnimation<Color>(
                                     isExceeded
                                         ? AppColors.danger
@@ -529,7 +529,7 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
                                     : '${_formatTime((b.limitMinutes - used).clamp(0, 9999))} remaining today',
                                 style: TextStyle(
                                   fontSize: 11,
-                                  color: isExceeded ? AppColors.danger : AppColors.textMuted,
+                                  color: isExceeded ? AppColors.danger : AppColors.textMutedColor(context),
                                 ),
                               ),
                             ],

@@ -93,28 +93,28 @@ class _UsageScreenState extends State<UsageScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surfaceDark,
+        backgroundColor: AppColors.surface(context),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Daily Limit for ${app.appName}', style: const TextStyle(color: AppColors.textPrimary)),
+        title: Text('Daily Limit for ${app.appName}', style: TextStyle(color: AppColors.textPrimaryColor(context))),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Set a maximum daily usage time in minutes:',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              style: TextStyle(color: AppColors.textSecondaryColor(context), fontSize: 13),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: controller,
               keyboardType: TextInputType.number,
               autofocus: true,
-              style: const TextStyle(color: AppColors.textPrimary),
+              style: TextStyle(color: AppColors.textPrimaryColor(context)),
               decoration: InputDecoration(
                 labelText: 'Limit (Minutes)',
-                labelStyle: const TextStyle(color: AppColors.textSecondary),
+                labelStyle: TextStyle(color: AppColors.textSecondaryColor(context)),
                 suffixText: 'mins',
-                suffixStyle: const TextStyle(color: AppColors.textSecondary),
+                suffixStyle: TextStyle(color: AppColors.textSecondaryColor(context)),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -127,7 +127,7 @@ class _UsageScreenState extends State<UsageScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted)),
+            child: Text('Cancel', style: TextStyle(color: AppColors.textMutedColor(context))),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -152,7 +152,7 @@ class _UsageScreenState extends State<UsageScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text('Daily limit set: $newLimit mins for ${app.appName}'),
-                    backgroundColor: AppColors.surfaceVariantDark,
+                    backgroundColor: AppColors.surfaceVariant(context),
                   ),
                 );
               }
@@ -172,6 +172,8 @@ class _UsageScreenState extends State<UsageScreen> {
       );
     }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -183,27 +185,31 @@ class _UsageScreenState extends State<UsageScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Column(
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'App Usage',
-                        style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                        style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.textPrimaryColor(context)),
                       ),
-                      SizedBox(height: 4),
-                      Text('Today\'s device activity', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                      const SizedBox(height: 4),
+                      Text('Today\'s device activity', style: TextStyle(color: AppColors.textSecondaryColor(context), fontSize: 13)),
                     ],
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceDark,
+                      color: AppColors.surface(context),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.cardBorderDark),
+                      border: Border.all(color: AppColors.cardBorder(context)),
                     ),
                     child: Text(
                       _formatTime(_totalUsageMinutes),
-                      style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.accentCyan, fontSize: 14),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? AppColors.accentCyan : AppColors.primary,
+                        fontSize: 14,
+                      ),
                     ),
                   ),
                 ],
@@ -218,17 +224,21 @@ class _UsageScreenState extends State<UsageScreen> {
                   _searchQuery = val;
                   _filterList();
                 },
-                style: const TextStyle(color: AppColors.textPrimary),
+                style: TextStyle(color: AppColors.textPrimaryColor(context)),
                 decoration: InputDecoration(
                   hintText: 'Search applications...',
-                  hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 14),
-                  prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
+                  hintStyle: TextStyle(color: AppColors.textMutedColor(context), fontSize: 14),
+                  prefixIcon: Icon(Icons.search, color: AppColors.textSecondaryColor(context)),
                   filled: true,
-                  fillColor: AppColors.surfaceDark,
+                  fillColor: AppColors.surface(context),
                   contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none,
+                    borderSide: BorderSide(color: AppColors.cardBorder(context)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(color: AppColors.cardBorder(context)),
                   ),
                 ),
               ),
@@ -249,14 +259,14 @@ class _UsageScreenState extends State<UsageScreen> {
                     label: Text(cat),
                     selected: isSelected,
                     selectedColor: AppColors.primary,
-                    backgroundColor: AppColors.surfaceDark,
+                    backgroundColor: AppColors.surface(context),
                     labelStyle: TextStyle(
-                      color: isSelected ? Colors.white : AppColors.textSecondary,
+                      color: isSelected ? Colors.white : AppColors.textSecondaryColor(context),
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                       fontSize: 12,
                     ),
                     side: BorderSide(
-                      color: isSelected ? AppColors.primary : AppColors.cardBorderDark,
+                      color: isSelected ? AppColors.primary : AppColors.cardBorder(context),
                     ),
                     onSelected: (val) {
                       setState(() => _selectedCategory = cat);
@@ -282,147 +292,147 @@ class _UsageScreenState extends State<UsageScreen> {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.search_off, size: 48, color: AppColors.textMuted.withOpacity(0.5)),
+                                Icon(Icons.search_off, size: 48, color: AppColors.textMutedColor(context).withOpacity(0.5)),
                                 const SizedBox(height: 12),
-                                const Text('No apps found', style: TextStyle(color: AppColors.textMuted)),
+                                Text('No apps found', style: TextStyle(color: AppColors.textMutedColor(context))),
                               ],
                             ),
                           ),
                         ],
                       )
                     : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                      itemCount: _filteredApps.length,
-                      itemBuilder: (context, index) {
-                        final app = _filteredApps[index];
-                        final limit = _appLimits[app.packageName];
-                        final hasLimit = limit != null && limit > 0;
-                        final isExceeded = hasLimit && app.durationMinutes >= limit;
-                        final usageRatio = _totalUsageMinutes > 0
-                            ? (app.durationMinutes / _totalUsageMinutes).clamp(0.0, 1.0)
-                            : 0.0;
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                        itemCount: _filteredApps.length,
+                        itemBuilder: (context, index) {
+                          final app = _filteredApps[index];
+                          final limit = _appLimits[app.packageName];
+                          final hasLimit = limit != null && limit > 0;
+                          final isExceeded = hasLimit && app.durationMinutes >= limit;
+                          final usageRatio = _totalUsageMinutes > 0
+                              ? (app.durationMinutes / _totalUsageMinutes).clamp(0.0, 1.0)
+                              : 0.0;
 
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceDark,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: isExceeded
-                                  ? AppColors.danger.withOpacity(0.6)
-                                  : AppColors.cardBorderDark,
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: AppColors.surface(context),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: isExceeded
+                                    ? AppColors.danger.withOpacity(0.6)
+                                    : AppColors.cardBorder(context),
+                              ),
                             ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  CircleAvatar(
-                                    radius: 20,
-                                    backgroundColor: AppColors.surfaceVariantDark,
-                                    child: Text(
-                                      app.appName.isNotEmpty ? app.appName[0].toUpperCase() : '?',
-                                      style: const TextStyle(
-                                        color: AppColors.accentCyan,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 20,
+                                      backgroundColor: AppColors.surfaceVariant(context),
+                                      child: Text(
+                                        app.appName.isNotEmpty ? app.appName[0].toUpperCase() : '?',
+                                        style: TextStyle(
+                                          color: isDark ? AppColors.accentCyan : AppColors.primary,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            app.appName,
+                                            style: TextStyle(
+                                              color: AppColors.textPrimaryColor(context),
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 15,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Row(
+                                            children: [
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: AppColors.surfaceVariant(context),
+                                                  borderRadius: BorderRadius.circular(6),
+                                                ),
+                                                child: Text(
+                                                  app.category,
+                                                  style: TextStyle(fontSize: 10, color: AppColors.textSecondaryColor(context)),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                '${app.launchCount} opens',
+                                                style: TextStyle(fontSize: 11, color: AppColors.textMutedColor(context)),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.end,
                                       children: [
                                         Text(
-                                          app.appName,
-                                          style: const TextStyle(
-                                            color: AppColors.textPrimary,
+                                          _formatTime(app.durationMinutes),
+                                          style: TextStyle(
                                             fontWeight: FontWeight.bold,
                                             fontSize: 15,
+                                            color: isExceeded ? AppColors.danger : AppColors.textPrimaryColor(context),
                                           ),
                                         ),
-                                        const SizedBox(height: 2),
-                                        Row(
-                                          children: [
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                              decoration: BoxDecoration(
-                                                color: AppColors.cardBorderDark,
-                                                borderRadius: BorderRadius.circular(6),
-                                              ),
-                                              child: Text(
-                                                app.category,
-                                                style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
-                                              ),
+                                        if (hasLimit)
+                                          Text(
+                                            'Limit: ${_formatTime(limit)}',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: isExceeded ? AppColors.danger : AppColors.textMutedColor(context),
                                             ),
-                                            const SizedBox(width: 8),
-                                            Text(
-                                              '${app.launchCount} opens',
-                                              style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
-                                            ),
-                                          ],
-                                        ),
+                                          ),
                                       ],
                                     ),
-                                  ),
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Text(
-                                        _formatTime(app.durationMinutes),
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 15,
-                                          color: isExceeded ? AppColors.danger : AppColors.textPrimary,
-                                        ),
+                                    IconButton(
+                                      icon: Icon(
+                                        Icons.timer_outlined,
+                                        size: 20,
+                                        color: hasLimit ? (isDark ? AppColors.accentCyan : AppColors.primary) : AppColors.textMutedColor(context),
                                       ),
-                                      if (hasLimit)
-                                        Text(
-                                          'Limit: ${_formatTime(limit)}',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            color: isExceeded ? AppColors.danger : AppColors.textMuted,
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                  IconButton(
-                                    icon: Icon(
-                                      Icons.timer_outlined,
-                                      size: 20,
-                                      color: hasLimit ? AppColors.accentCyan : AppColors.textMuted,
+                                      tooltip: 'Set Limit',
+                                      onPressed: () => _showSetLimitDialog(app),
                                     ),
-                                    tooltip: 'Set Limit',
-                                    onPressed: () => _showSetLimitDialog(app),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(4),
-                                child: LinearProgressIndicator(
-                                  value: usageRatio,
-                                  backgroundColor: AppColors.surfaceVariantDark,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    isExceeded
-                                        ? AppColors.danger
-                                        : AppCategoryManager.isProductive(app.category)
-                                            ? AppColors.success
-                                            : AppCategoryManager.isDistracting(app.category)
-                                                ? AppColors.warning
-                                                : AppColors.primary,
-                                  ),
-                                  minHeight: 6,
+                                  ],
                                 ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
+                                const SizedBox(height: 10),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: LinearProgressIndicator(
+                                    value: usageRatio,
+                                    backgroundColor: AppColors.surfaceVariant(context),
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      isExceeded
+                                          ? AppColors.danger
+                                          : AppCategoryManager.isProductive(app.category)
+                                              ? AppColors.success
+                                              : AppCategoryManager.isDistracting(app.category)
+                                                  ? AppColors.warning
+                                                  : AppColors.primary,
+                                    ),
+                                    minHeight: 6,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
               ),
             ),
           ],

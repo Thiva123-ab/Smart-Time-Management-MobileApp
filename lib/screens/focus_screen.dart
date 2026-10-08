@@ -79,10 +79,10 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
   void _logDistraction() {
     setState(() => _focusDistractions++);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Distraction logged. Take a deep breath & refocus! 🧘'),
-        duration: Duration(seconds: 2),
-        backgroundColor: AppColors.surfaceVariantDark,
+      SnackBar(
+        content: const Text('Distraction logged. Take a deep breath & refocus! 🧘'),
+        duration: const Duration(seconds: 2),
+        backgroundColor: AppColors.surfaceVariant(context),
       ),
     );
   }
@@ -119,27 +119,30 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surfaceDark,
+        backgroundColor: AppColors.surface(context),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Row(
           children: [
             Icon(session.completed ? Icons.emoji_events : Icons.check_circle_outline, color: AppColors.accentCyan),
             const SizedBox(width: 10),
-            Text(session.completed ? 'Session Complete! 🎉' : 'Session Saved', style: const TextStyle(color: AppColors.textPrimary)),
+            Text(
+              session.completed ? 'Session Complete! 🎉' : 'Session Saved',
+              style: TextStyle(color: AppColors.textPrimaryColor(context)),
+            ),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Task: ${session.taskName}', style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+            Text('Task: ${session.taskName}', style: TextStyle(color: AppColors.textPrimaryColor(context), fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            Text('Duration: ${session.durationMinutes} minutes', style: const TextStyle(color: AppColors.textSecondary)),
-            Text('Distractions Logged: ${session.distractionCount}', style: const TextStyle(color: AppColors.textSecondary)),
+            Text('Duration: ${session.durationMinutes} minutes', style: TextStyle(color: AppColors.textSecondaryColor(context))),
+            Text('Distractions Logged: ${session.distractionCount}', style: TextStyle(color: AppColors.textSecondaryColor(context))),
             const SizedBox(height: 12),
-            const Text(
+            Text(
               'Great discipline! Your focus time has been added to your daily productivity score.',
-              style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+              style: TextStyle(color: AppColors.textMutedColor(context), fontSize: 12),
             ),
           ],
         ),
@@ -194,6 +197,8 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -204,22 +209,36 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Column(
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Focus & Flow', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                      SizedBox(height: 4),
-                      Text('Enter deep concentration mode', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                      Text(
+                        'Focus & Flow',
+                        style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.textPrimaryColor(context)),
+                      ),
+                      const SizedBox(height: 4),
+                      Text('Enter deep concentration mode', style: TextStyle(color: AppColors.textSecondaryColor(context), fontSize: 13)),
                     ],
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(color: AppColors.surfaceDark, borderRadius: BorderRadius.circular(12)),
-                    child: const Row(
+                    decoration: BoxDecoration(
+                      color: AppColors.surface(context),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.cardBorder(context)),
+                    ),
+                    child: Row(
                       children: [
-                        Icon(Icons.shield_outlined, color: AppColors.accentCyan, size: 16),
-                        SizedBox(width: 4),
-                        Text('DND Mode', style: TextStyle(fontSize: 11, color: AppColors.accentCyan, fontWeight: FontWeight.bold)),
+                        Icon(Icons.shield_outlined, color: isDark ? AppColors.accentCyan : AppColors.primary, size: 16),
+                        const SizedBox(width: 4),
+                        Text(
+                          'DND Mode',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isDark ? AppColors.accentCyan : AppColors.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -230,9 +249,9 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
             // Tab Bar
             TabBar(
               controller: _tabController,
-              indicatorColor: AppColors.accentCyan,
-              labelColor: AppColors.accentCyan,
-              unselectedLabelColor: AppColors.textSecondary,
+              indicatorColor: isDark ? AppColors.accentCyan : AppColors.primary,
+              labelColor: isDark ? AppColors.accentCyan : AppColors.primary,
+              unselectedLabelColor: AppColors.textSecondaryColor(context),
               indicatorWeight: 3,
               tabs: const [
                 Tab(text: 'Deep Focus Session'),
@@ -263,6 +282,7 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
     final totalSeconds = _selectedDurationMinutes * 60;
     final remainingSeconds = (totalSeconds - _focusElapsedSeconds).clamp(0, totalSeconds);
     final progress = totalSeconds > 0 ? (_focusElapsedSeconds / totalSeconds).clamp(0.0, 1.0) : 0.0;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -272,22 +292,23 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
           if (!_isFocusActive) ...[
             TextField(
               controller: _taskController,
-              style: const TextStyle(color: AppColors.textPrimary),
+              style: TextStyle(color: AppColors.textPrimaryColor(context)),
               decoration: InputDecoration(
                 labelText: 'Focus Task Name',
                 hintText: 'e.g. Study Mathematics, Write Article',
-                prefixIcon: const Icon(Icons.edit_note, color: AppColors.accentCyan),
+                prefixIcon: Icon(Icons.edit_note, color: isDark ? AppColors.accentCyan : AppColors.primary),
                 filled: true,
-                fillColor: AppColors.surfaceDark,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                fillColor: AppColors.surface(context),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: AppColors.cardBorder(context))),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: AppColors.cardBorder(context))),
               ),
             ),
             const SizedBox(height: 16),
 
             // Presets
-            const Align(
+            Align(
               alignment: Alignment.centerLeft,
-              child: Text('Select Session Length', style: TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.bold)),
+              child: Text('Select Session Length', style: TextStyle(color: AppColors.textSecondaryColor(context), fontSize: 13, fontWeight: FontWeight.bold)),
             ),
             const SizedBox(height: 10),
             Row(
@@ -298,11 +319,12 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
                   label: Text('${m}m'),
                   selected: isSelected,
                   selectedColor: AppColors.primary,
-                  backgroundColor: AppColors.surfaceDark,
+                  backgroundColor: AppColors.surface(context),
                   labelStyle: TextStyle(
-                    color: isSelected ? Colors.white : AppColors.textSecondary,
+                    color: isSelected ? Colors.white : AppColors.textSecondaryColor(context),
                     fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                   ),
+                  side: BorderSide(color: isSelected ? AppColors.primary : AppColors.cardBorder(context)),
                   onSelected: (val) {
                     if (val) setState(() => _selectedDurationMinutes = m);
                   },
@@ -313,11 +335,11 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
           ],
 
           if (_isFocusActive) ...[
-            Text(_taskController.text.trim(), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            Text(_taskController.text.trim(), style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimaryColor(context))),
             const SizedBox(height: 6),
             Text(
               _isFocusPaused ? 'Session Paused' : 'In Deep Work',
-              style: TextStyle(color: _isFocusPaused ? AppColors.warning : AppColors.accentCyan, fontSize: 13),
+              style: TextStyle(color: _isFocusPaused ? AppColors.warning : (isDark ? AppColors.accentCyan : AppColors.primary), fontSize: 13),
             ),
             const SizedBox(height: 16),
           ],
@@ -336,7 +358,7 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
                     child: CircularProgressIndicator(
                       value: _isFocusActive ? progress : 0.0,
                       strokeWidth: 12,
-                      backgroundColor: AppColors.surfaceDark,
+                      backgroundColor: AppColors.surfaceVariant(context),
                       valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
                     ),
                   ),
@@ -345,12 +367,12 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
                     children: [
                       Text(
                         _isFocusActive ? _formatSeconds(remainingSeconds) : '${_selectedDurationMinutes}:00',
-                        style: const TextStyle(fontSize: 44, fontWeight: FontWeight.bold, color: AppColors.textPrimary, letterSpacing: 2),
+                        style: TextStyle(fontSize: 44, fontWeight: FontWeight.bold, color: AppColors.textPrimaryColor(context), letterSpacing: 2),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         _isFocusActive ? '${_formatSeconds(_focusElapsedSeconds)} elapsed' : 'Target Duration',
-                        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        style: TextStyle(fontSize: 12, color: AppColors.textSecondaryColor(context)),
                       ),
                     ],
                   ),
@@ -409,8 +431,8 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
             // Distraction Logger
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: AppColors.cardBorderDark),
-                foregroundColor: AppColors.textSecondary,
+                side: BorderSide(color: AppColors.cardBorder(context)),
+                foregroundColor: AppColors.textSecondaryColor(context),
                 minimumSize: const Size.fromHeight(46),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
@@ -469,7 +491,7 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
                     child: CircularProgressIndicator(
                       value: progress,
                       strokeWidth: 12,
-                      backgroundColor: AppColors.surfaceDark,
+                      backgroundColor: AppColors.surfaceVariant(context),
                       valueColor: AlwaysStoppedAnimation<Color>(phaseColor),
                     ),
                   ),
@@ -478,10 +500,10 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
                     children: [
                       Text(
                         _formatSeconds(_pomodoro.remainingSeconds),
-                        style: const TextStyle(fontSize: 44, fontWeight: FontWeight.bold, color: AppColors.textPrimary, letterSpacing: 2),
+                        style: TextStyle(fontSize: 44, fontWeight: FontWeight.bold, color: AppColors.textPrimaryColor(context), letterSpacing: 2),
                       ),
                       const SizedBox(height: 4),
-                      Text('Cycle: ${_pomodoro.completedCycles + 1}', style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                      Text('Cycle: ${_pomodoro.completedCycles + 1}', style: TextStyle(fontSize: 13, color: AppColors.textSecondaryColor(context))),
                     ],
                   ),
                 ],
@@ -496,10 +518,10 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
             children: [
               IconButton(
                 style: IconButton.styleFrom(
-                  backgroundColor: AppColors.surfaceDark,
+                  backgroundColor: AppColors.surface(context),
                   padding: const EdgeInsets.all(16),
                 ),
-                icon: const Icon(Icons.refresh, color: AppColors.textSecondary),
+                icon: Icon(Icons.refresh, color: AppColors.textSecondaryColor(context)),
                 onPressed: _resetPomodoro,
               ),
               const SizedBox(width: 20),
@@ -523,9 +545,9 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
           const SizedBox(height: 24),
 
           // Preset options
-          const Align(
+          Align(
             alignment: Alignment.centerLeft,
-            child: Text('Presets', style: TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.bold)),
+            child: Text('Presets', style: TextStyle(color: AppColors.textSecondaryColor(context), fontSize: 13, fontWeight: FontWeight.bold)),
           ),
           const SizedBox(height: 10),
           Row(
@@ -533,22 +555,22 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
               Expanded(
                 child: OutlinedButton(
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: AppColors.cardBorderDark),
+                    side: BorderSide(color: AppColors.cardBorder(context)),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   onPressed: () => setState(() => _pomodoro.applyPreset(25, 5, 15)),
-                  child: const Text('Classic (25/5)', style: TextStyle(color: AppColors.textPrimary, fontSize: 12)),
+                  child: Text('Classic (25/5)', style: TextStyle(color: AppColors.textPrimaryColor(context), fontSize: 12)),
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: OutlinedButton(
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: AppColors.cardBorderDark),
+                    side: BorderSide(color: AppColors.cardBorder(context)),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   onPressed: () => setState(() => _pomodoro.applyPreset(50, 10, 20)),
-                  child: const Text('Extended (50/10)', style: TextStyle(color: AppColors.textPrimary, fontSize: 12)),
+                  child: Text('Extended (50/10)', style: TextStyle(color: AppColors.textPrimaryColor(context), fontSize: 12)),
                 ),
               ),
             ],

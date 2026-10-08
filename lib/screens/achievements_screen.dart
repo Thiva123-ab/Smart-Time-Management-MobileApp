@@ -58,11 +58,15 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
       );
     }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final unlockedCount = _achievements.where((a) => a.isUnlocked).length;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Streaks & Badges', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(
+          'Streaks & Badges',
+          style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimaryColor(context)),
+        ),
       ),
       body: SafeArea(
         child: ListView(
@@ -128,17 +132,24 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Achievements', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                Text(
+                  'Achievements',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimaryColor(context)),
+                ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceDark,
+                    color: AppColors.surface(context),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.cardBorderDark),
+                    border: Border.all(color: AppColors.cardBorder(context)),
                   ),
                   child: Text(
                     '$unlockedCount of ${_achievements.length} Unlocked',
-                    style: const TextStyle(color: AppColors.accentCyan, fontSize: 12, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      color: isDark ? AppColors.accentCyan : AppColors.primary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
@@ -163,10 +174,12 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                 return Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceDark,
+                    color: AppColors.surface(context),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: badge.isUnlocked ? AppColors.accentCyan.withOpacity(0.5) : AppColors.cardBorderDark,
+                      color: badge.isUnlocked
+                          ? (isDark ? AppColors.accentCyan.withOpacity(0.5) : AppColors.primary.withOpacity(0.5))
+                          : AppColors.cardBorder(context),
                     ),
                   ),
                   child: Column(
@@ -176,14 +189,16 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
                           color: badge.isUnlocked
-                              ? AppColors.primary.withOpacity(0.2)
-                              : AppColors.surfaceVariantDark.withOpacity(0.3),
+                              ? AppColors.primary.withOpacity(0.15)
+                              : AppColors.surfaceVariant(context),
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
                           icon,
                           size: 32,
-                          color: badge.isUnlocked ? AppColors.accentCyan : AppColors.textMuted,
+                          color: badge.isUnlocked
+                              ? (isDark ? AppColors.accentCyan : AppColors.primary)
+                              : AppColors.textMutedColor(context),
                         ),
                       ),
                       const SizedBox(height: 10),
@@ -193,7 +208,9 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
-                          color: badge.isUnlocked ? AppColors.textPrimary : AppColors.textMuted,
+                          color: badge.isUnlocked
+                              ? AppColors.textPrimaryColor(context)
+                              : AppColors.textMutedColor(context),
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -202,7 +219,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                         textAlign: TextAlign.center,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                        style: TextStyle(color: AppColors.textSecondaryColor(context), fontSize: 11),
                       ),
                     ],
                   ),
