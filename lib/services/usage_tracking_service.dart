@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../data/models/app_usage.dart';
@@ -5,8 +6,11 @@ import '../domain/app_category_manager.dart';
 
 class UsageTrackingService {
   static const MethodChannel _channel = MethodChannel('com.focusflow.app/usage');
+  static final Map<String, Uint8List> _iconCache = {};
 
   static String get todayDate => DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+  static Uint8List? getCachedIcon(String packageName) => _iconCache[packageName];
 
   static Future<bool> hasPermission() async {
     try {
@@ -21,6 +25,21 @@ class UsageTrackingService {
     try {
       await _channel.invokeMethod('openUsageSettings');
     } catch (_) {}
+  }
+
+  static Future<Uint8List?> fetchAppIcon(String packageName) async {
+    if (_iconCache.containsKey(packageName)) {
+      return _iconCache[packageName];
+    }
+    try {
+      final Uint8List? icon = await _channel.invokeMethod('getAppIcon', {'packageName': packageName});
+      if (icon != null) {
+        _iconCache[packageName] = icon;
+      }
+      return icon;
+    } catch (_) {
+      return null;
+    }
   }
 
   static Future<List<AppUsage>> fetchTodayUsage() async {
@@ -44,6 +63,11 @@ class UsageTrackingService {
             final name = item['appName'] as String;
             final duration = item['durationMinutes'] as int;
             final launches = item['launchCount'] as int? ?? 1;
+            final iconBytes = item['appIcon'] as Uint8List?;
+
+            if (iconBytes != null) {
+              _iconCache[pkg] = iconBytes;
+            }
 
             return AppUsage(
               packageName: pkg,
@@ -54,6 +78,7 @@ class UsageTrackingService {
               durationMinutes: duration,
               date: date,
               launchCount: launches,
+              appIcon: iconBytes,
             );
           }).toList();
         }

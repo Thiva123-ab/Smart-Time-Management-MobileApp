@@ -348,10 +348,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
         children: [
           CircleAvatar(
             backgroundColor: AppColors.surfaceVariant(context),
-            child: Text(
-              app.appName.isNotEmpty ? app.appName[0] : '?',
-              style: TextStyle(color: isDark ? AppColors.accentCyan : AppColors.primary, fontWeight: FontWeight.bold),
-            ),
+            child: (app.appIcon != null && app.appIcon!.isNotEmpty)
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.memory(
+                      app.appIcon!,
+                      width: 32,
+                      height: 32,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => Text(
+                        app.appName.isNotEmpty ? app.appName[0].toUpperCase() : '?',
+                        style: TextStyle(color: isDark ? AppColors.accentCyan : AppColors.primary, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  )
+                : Text(
+                    app.appName.isNotEmpty ? app.appName[0].toUpperCase() : '?',
+                    style: TextStyle(color: isDark ? AppColors.accentCyan : AppColors.primary, fontWeight: FontWeight.bold),
+                  ),
           ),
           const SizedBox(width: 12),
           Expanded(

@@ -332,14 +332,32 @@ class _UsageScreenState extends State<UsageScreen> {
                                     CircleAvatar(
                                       radius: 20,
                                       backgroundColor: AppColors.surfaceVariant(context),
-                                      child: Text(
-                                        app.appName.isNotEmpty ? app.appName[0].toUpperCase() : '?',
-                                        style: TextStyle(
-                                          color: isDark ? AppColors.accentCyan : AppColors.primary,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                        ),
-                                      ),
+                                      child: (app.appIcon != null && app.appIcon!.isNotEmpty)
+                                          ? ClipRRect(
+                                              borderRadius: BorderRadius.circular(10),
+                                              child: Image.memory(
+                                                app.appIcon!,
+                                                width: 36,
+                                                height: 36,
+                                                fit: BoxFit.contain,
+                                                errorBuilder: (_, __, ___) => Text(
+                                                  app.appName.isNotEmpty ? app.appName[0].toUpperCase() : '?',
+                                                  style: TextStyle(
+                                                    color: isDark ? AppColors.accentCyan : AppColors.primary,
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 16,
+                                                  ),
+                                                ),
+                                              ),
+                                            )
+                                          : Text(
+                                              app.appName.isNotEmpty ? app.appName[0].toUpperCase() : '?',
+                                              style: TextStyle(
+                                                color: isDark ? AppColors.accentCyan : AppColors.primary,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 16,
+                                              ),
+                                            ),
                                     ),
                                     const SizedBox(width: 12),
                                     Expanded(
