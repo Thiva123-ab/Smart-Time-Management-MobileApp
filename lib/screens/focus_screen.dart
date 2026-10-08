@@ -148,9 +148,12 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
         ),
         actions: [
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Awesome'),
+            child: const Text('Awesome', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -387,12 +390,16 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
                 minimumSize: const Size.fromHeight(54),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               ),
               onPressed: _startFocusSession,
-              icon: const Icon(Icons.play_arrow, size: 28),
-              label: const Text('Start Deep Focus', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              icon: const Icon(Icons.play_arrow, size: 28, color: Colors.white),
+              label: const Text(
+                'Start Deep Focus',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+              ),
             )
           else ...[
             Row(

@@ -88,7 +88,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Text('Cancel', style: TextStyle(color: AppColors.textMutedColor(context))),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () async {
               final key = _apiKeyController.text.trim();
               await _savePreference('gemini_api_key', key);
@@ -150,7 +153,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Text('Close', style: TextStyle(color: AppColors.textMutedColor(context))),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () {
               Navigator.pop(ctx);
               ScaffoldMessenger.of(context).showSnackBar(
@@ -258,6 +264,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       ),
                       onPressed: () async {

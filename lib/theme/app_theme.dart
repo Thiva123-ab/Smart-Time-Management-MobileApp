@@ -110,6 +110,13 @@ class AppTheme {
           return const TextStyle(color: AppColors.textSecondaryLight, fontSize: 12);
         }),
       ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          textStyle: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+      ),
     );
   }
 
@@ -161,6 +168,13 @@ class AppTheme {
           }
           return const TextStyle(color: AppColors.textSecondary, fontSize: 12);
         }),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          textStyle: const TextStyle(fontWeight: FontWeight.bold),
+        ),
       ),
     );
   }
