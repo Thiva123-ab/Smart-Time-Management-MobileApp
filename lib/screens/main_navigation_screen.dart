@@ -6,6 +6,8 @@ import 'focus_screen.dart';
 import 'goals_screen.dart';
 import 'analytics_screen.dart';
 import 'settings_screen.dart';
+import 'ai_assistant_screen.dart';
+import 'achievements_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -62,6 +64,26 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.auto_awesome, color: AppColors.accentCyan),
+            tooltip: 'AI Coach',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AiAssistantScreen()),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.military_tech_outlined, color: AppColors.warning),
+            tooltip: 'Badges & Streaks',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AchievementsScreen()),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.settings_outlined, color: AppColors.textSecondary),
             tooltip: 'Settings',
