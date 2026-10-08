@@ -105,7 +105,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Scaffold(
       body: SafeArea(
-        child: ListView(
+        child: RefreshIndicator(
+          color: AppColors.accentCyan,
+          onRefresh: _loadData,
+          child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           children: [
             // 1. Header
@@ -233,7 +236,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 
   Widget _metricCard(String title, String value, Color color) {

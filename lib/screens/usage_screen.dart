@@ -271,18 +271,26 @@ class _UsageScreenState extends State<UsageScreen> {
 
             // App List
             Expanded(
-              child: _filteredApps.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+              child: RefreshIndicator(
+                color: AppColors.accentCyan,
+                onRefresh: _loadData,
+                child: _filteredApps.isEmpty
+                    ? ListView(
                         children: [
-                          Icon(Icons.search_off, size: 48, color: AppColors.textMuted.withOpacity(0.5)),
-                          const SizedBox(height: 12),
-                          const Text('No apps found', style: TextStyle(color: AppColors.textMuted)),
+                          const SizedBox(height: 100),
+                          Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.search_off, size: 48, color: AppColors.textMuted.withOpacity(0.5)),
+                                const SizedBox(height: 12),
+                                const Text('No apps found', style: TextStyle(color: AppColors.textMuted)),
+                              ],
+                            ),
+                          ),
                         ],
-                      ),
-                    )
-                  : ListView.builder(
+                      )
+                    : ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                       itemCount: _filteredApps.length,
                       itemBuilder: (context, index) {
@@ -415,6 +423,7 @@ class _UsageScreenState extends State<UsageScreen> {
                         );
                       },
                     ),
+              ),
             ),
           ],
         ),
