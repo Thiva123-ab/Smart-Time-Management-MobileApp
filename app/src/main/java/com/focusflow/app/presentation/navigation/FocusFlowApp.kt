@@ -112,22 +112,18 @@ fun FocusFlowApp() {
                 )
             }
             composable("ai_assistant") {
-                // To be wired in Step 6
-                androidx.compose.foundation.layout.Box(
-                    modifier = Modifier.padding(20.dp),
-                    contentAlignment = androidx.compose.ui.Alignment.Center
-                ) {
-                    Text("AI Assistant Loading...", color = TextPrimaryDark)
-                }
+                val vm: com.focusflow.app.presentation.ai.AIViewModel = viewModel()
+                com.focusflow.app.presentation.ai.AIAssistantScreen(
+                    viewModel = vm,
+                    onNavigateBack = { navController.popBackStack() }
+                )
             }
             composable("achievements") {
-                // To be wired in Step 6
-                androidx.compose.foundation.layout.Box(
-                    modifier = Modifier.padding(20.dp),
-                    contentAlignment = androidx.compose.ui.Alignment.Center
-                ) {
-                    Text("Achievements Loading...", color = TextPrimaryDark)
-                }
+                val vm: com.focusflow.app.presentation.achievements.AchievementsViewModel = viewModel()
+                com.focusflow.app.presentation.achievements.AchievementsScreen(
+                    viewModel = vm,
+                    onNavigateBack = { navController.popBackStack() }
+                )
             }
         }
     }
