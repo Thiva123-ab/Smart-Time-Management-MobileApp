@@ -100,7 +100,7 @@ object AppCategoryManager {
         defaultCategoryMap[packageName]?.let { return it }
 
         // Heuristic detection based on package naming
-        val lower = packageName.toLowerCase()
+        val lower = packageName.lowercase()
         return when {
             lower.contains("game") || lower.contains("play") -> CATEGORY_GAMING
             lower.contains("study") || lower.contains("learn") || lower.contains("edu") -> CATEGORY_EDUCATION

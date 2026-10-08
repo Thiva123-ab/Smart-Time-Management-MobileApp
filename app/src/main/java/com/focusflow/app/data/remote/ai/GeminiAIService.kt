@@ -88,7 +88,7 @@ class GeminiAIService(private val apiKey: String = "") {
      * Local Offline Intelligence Engine (works 100% without internet).
      */
     fun generateLocalOfflineAdvice(summary: AnonymousUsageSummary, userQuery: String): String {
-        val lowerQuery = userQuery.toLowerCase()
+        val lowerQuery = userQuery.lowercase()
 
         return when {
             lowerQuery.contains("schedule") -> {
