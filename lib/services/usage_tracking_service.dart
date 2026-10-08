@@ -29,34 +29,38 @@ class UsageTrackingService {
     final startOfDay = DateTime(now.year, now.month, now.day).millisecondsSinceEpoch;
     final endOfDay = now.millisecondsSinceEpoch;
 
-    try {
-      final List<dynamic>? rawStats = await _channel.invokeMethod('getUsageStats', {
-        'startTime': startOfDay,
-        'endTime': endOfDay,
-      });
+    final permitted = await hasPermission();
 
-      if (rawStats != null && rawStats.isNotEmpty) {
-        return rawStats.map((item) {
-          final pkg = item['packageName'] as String;
-          final name = item['appName'] as String;
-          final duration = item['durationMinutes'] as int;
-          final launches = item['launchCount'] as int? ?? 1;
+    if (permitted) {
+      try {
+        final List<dynamic>? rawStats = await _channel.invokeMethod('getUsageStats', {
+          'startTime': startOfDay,
+          'endTime': endOfDay,
+        });
 
-          return AppUsage(
-            packageName: pkg,
-            appName: name,
-            category: AppCategoryManager.getCategoryForPackage(pkg),
-            startTime: startOfDay,
-            endTime: endOfDay,
-            durationMinutes: duration,
-            date: date,
-            launchCount: launches,
-          );
-        }).toList();
-      }
-    } catch (_) {}
+        if (rawStats != null) {
+          return rawStats.map((item) {
+            final pkg = item['packageName'] as String;
+            final name = item['appName'] as String;
+            final duration = item['durationMinutes'] as int;
+            final launches = item['launchCount'] as int? ?? 1;
 
-    // Return realistic initial data if running without usage stats channel enabled yet
+            return AppUsage(
+              packageName: pkg,
+              appName: name,
+              category: AppCategoryManager.getCategoryForPackage(pkg),
+              startTime: startOfDay,
+              endTime: endOfDay,
+              durationMinutes: duration,
+              date: date,
+              launchCount: launches,
+            );
+          }).toList();
+        }
+      } catch (_) {}
+    }
+
+    // Return sample starter data only if Usage Access permission is not granted yet
     return [
       AppUsage(
         packageName: 'com.google.android.youtube',

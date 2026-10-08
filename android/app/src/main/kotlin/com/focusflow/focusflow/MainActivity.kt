@@ -1,5 +1,139 @@
 package com.focusflow.focusflow
 
+import android.app.AppOpsManager
+import android.app.usage.UsageStats
+import android.app.usage.UsageStatsManager
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Process
+import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.MethodChannel
 
-class MainActivity : FlutterActivity()
+class MainActivity : FlutterActivity() {
+    private val CHANNEL = "com.focusflow.app/usage"
+
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "hasUsagePermission" -> {
+                    result.success(hasUsageStatsPermission())
+                }
+                "openUsageSettings" -> {
+                    openUsageSettings()
+                    result.success(true)
+                }
+                "getUsageStats" -> {
+                    val startTime = call.argument<Long>("startTime") ?: 0L
+                    val endTime = call.argument<Long>("endTime") ?: System.currentTimeMillis()
+                    val stats = getAppUsageStats(startTime, endTime)
+                    result.success(stats)
+                }
+                else -> {
+                    result.notImplemented()
+                }
+            }
+        }
+    }
+
+    private fun hasUsageStatsPermission(): Boolean {
+        val appOps = getSystemService(Context.APP_OPS_SERVICE) as? AppOpsManager ?: return false
+        val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            appOps.unsafeCheckOpNoThrow(
+                AppOpsManager.OPSTR_GET_USAGE_STATS,
+                Process.myUid(),
+                packageName
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            appOps.checkOpNoThrow(
+                AppOpsManager.OPSTR_GET_USAGE_STATS,
+                Process.myUid(),
+                packageName
+            )
+        }
+        return mode == AppOpsManager.MODE_ALLOWED
+    }
+
+    private fun openUsageSettings() {
+        try {
+            val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            startActivity(intent)
+        } catch (_: Exception) {
+            try {
+                val fallbackIntent = Intent(Settings.ACTION_SETTINGS).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                startActivity(fallbackIntent)
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun getAppUsageStats(startTime: Long, endTime: Long): List<Map<String, Any>> {
+        if (!hasUsageStatsPermission()) {
+            return emptyList()
+        }
+
+        val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
+            ?: return emptyList()
+
+        val usageStatsList: List<UsageStats> = usageStatsManager.queryUsageStats(
+            UsageStatsManager.INTERVAL_DAILY,
+            startTime,
+            endTime
+        ) ?: return emptyList()
+
+        val pm = packageManager
+        val aggregated = mutableMapOf<String, Long>()
+
+        for (stat in usageStatsList) {
+            val pkg = stat.packageName ?: continue
+            val time = stat.totalTimeInForeground
+            if (time > 0) {
+                aggregated[pkg] = (aggregated[pkg] ?: 0L) + time
+            }
+        }
+
+        val resultList = mutableListOf<Map<String, Any>>()
+
+        for ((pkg, timeMillis) in aggregated) {
+            val durationMinutes = (timeMillis / 60000L).toInt()
+            if (durationMinutes <= 0) continue
+
+            // Filter out system framework package
+            if (pkg == "android" || pkg == packageName) continue
+
+            var appName = pkg
+            try {
+                val appInfo = pm.getApplicationInfo(pkg, 0)
+                appName = pm.getApplicationLabel(appInfo).toString()
+            } catch (_: PackageManager.NameNotFoundException) {
+                // If app is uninstalled or system hidden, derive readable name
+                val segments = pkg.split(".")
+                if (segments.isNotEmpty()) {
+                    appName = segments.last().replaceFirstChar { it.uppercase() }
+                }
+            }
+
+            resultList.add(
+                mapOf(
+                    "packageName" to pkg,
+                    "appName" to appName,
+                    "durationMinutes" to durationMinutes,
+                    "launchCount" to 1
+                )
+            )
+        }
+
+        // Sort descending by duration
+        resultList.sortByDescending { (it["durationMinutes"] as? Int) ?: 0 }
+        return resultList
+    }
+}
