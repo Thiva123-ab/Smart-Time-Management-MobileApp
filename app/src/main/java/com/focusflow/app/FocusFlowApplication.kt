@@ -10,6 +10,18 @@ class FocusFlowApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannels()
+        scheduleUsageWork()
+    }
+
+    private fun scheduleUsageWork() {
+        val workRequest = androidx.work.PeriodicWorkRequestBuilder<com.focusflow.app.services.DailyUsageAggregationWorker>(
+            1, java.util.concurrent.TimeUnit.HOURS
+        ).build()
+        androidx.work.WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "DailyUsageAggregation",
+            androidx.work.ExistingPeriodicWorkPolicy.KEEP,
+            workRequest
+        )
     }
 
     private fun createNotificationChannels() {
