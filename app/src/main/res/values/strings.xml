@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">FocusFlow</string>
+    <string name="tagline">Take Control of Your Time. Take Control of Your Day.</string>
+    <string name="notification_channel_budget">Budget &amp; Usage Alerts</string>
+    <string name="notification_channel_budget_desc">Alerts when time budgets and app limits are nearing or reached.</string>
+    <string name="notification_channel_focus">Focus &amp; Pomodoro Sessions</string>
+    <string name="notification_channel_focus_desc">Updates and reminders for active Focus and Pomodoro sessions.</string>
+    <string name="notification_channel_goals">Goal &amp; Streak Reminders</string>
+    <string name="notification_channel_goals_desc">Reminders about your daily productivity goals and achievements.</string>
+</resources>
