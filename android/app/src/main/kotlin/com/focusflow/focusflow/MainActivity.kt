@@ -6,12 +6,17 @@ import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Drawable
 import android.os.Build
 import android.os.Process
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.ByteArrayOutputStream
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.focusflow.app/usage"
@@ -33,6 +38,11 @@ class MainActivity : FlutterActivity() {
                     val endTime = call.argument<Long>("endTime") ?: System.currentTimeMillis()
                     val stats = getAppUsageStats(startTime, endTime)
                     result.success(stats)
+                }
+                "getAppIcon" -> {
+                    val pkg = call.argument<String>("packageName") ?: ""
+                    val iconBytes = if (pkg.isNotEmpty()) getAppIconBytes(packageManager, pkg) else null
+                    result.success(iconBytes)
                 }
                 else -> {
                     result.notImplemented()
@@ -73,6 +83,25 @@ class MainActivity : FlutterActivity() {
                 }
                 startActivity(fallbackIntent)
             } catch (_: Exception) {}
+        }
+    }
+
+    private fun getAppIconBytes(pm: PackageManager, pkg: String): ByteArray? {
+        return try {
+            val drawable: Drawable = pm.getApplicationIcon(pkg)
+            val width = if (drawable.intrinsicWidth > 0) drawable.intrinsicWidth else 96
+            val height = if (drawable.intrinsicHeight > 0) drawable.intrinsicHeight else 96
+            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            drawable.setBounds(0, 0, canvas.width, canvas.height)
+            drawable.draw(canvas)
+
+            val scaled = Bitmap.createScaledBitmap(bitmap, 72, 72, true)
+            val outputStream = ByteArrayOutputStream()
+            scaled.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
+            outputStream.toByteArray()
+        } catch (_: Exception) {
+            null
         }
     }
 
@@ -122,14 +151,20 @@ class MainActivity : FlutterActivity() {
                 }
             }
 
-            resultList.add(
-                mapOf(
-                    "packageName" to pkg,
-                    "appName" to appName,
-                    "durationMinutes" to durationMinutes,
-                    "launchCount" to 1
-                )
+            val appMap = mutableMapOf<String, Any>(
+                "packageName" to pkg,
+                "appName" to appName,
+                "durationMinutes" to durationMinutes,
+                "launchCount" to 1
             )
+
+            // Attach app icon byte array
+            val iconBytes = getAppIconBytes(pm, pkg)
+            if (iconBytes != null) {
+                appMap["appIcon"] = iconBytes
+            }
+
+            resultList.add(appMap)
         }
 
         // Sort descending by duration

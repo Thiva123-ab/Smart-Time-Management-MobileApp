@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 class AppUsage {
   final int? id;
   final String packageName;
@@ -8,6 +10,7 @@ class AppUsage {
   final int durationMinutes;
   final String date; // yyyy-MM-dd
   final int launchCount;
+  final Uint8List? appIcon;
 
   AppUsage({
     this.id,
@@ -19,6 +22,7 @@ class AppUsage {
     required this.durationMinutes,
     required this.date,
     this.launchCount = 1,
+    this.appIcon,
   });
 
   Map<String, dynamic> toMap() {
@@ -35,7 +39,7 @@ class AppUsage {
     };
   }
 
-  factory AppUsage.fromMap(Map<String, dynamic> map) {
+  factory AppUsage.fromMap(Map<String, dynamic> map, {Uint8List? icon}) {
     return AppUsage(
       id: map['id'],
       packageName: map['packageName'],
@@ -46,10 +50,11 @@ class AppUsage {
       durationMinutes: map['durationMinutes'],
       date: map['date'],
       launchCount: map['launchCount'] ?? 1,
+      appIcon: icon ?? (map['appIcon'] as Uint8List?),
     );
   }
 
-  AppUsage copyWith({String? category, int? durationMinutes, int? launchCount}) {
+  AppUsage copyWith({String? category, int? durationMinutes, int? launchCount, Uint8List? appIcon}) {
     return AppUsage(
       id: id,
       packageName: packageName,
@@ -60,6 +65,7 @@ class AppUsage {
       durationMinutes: durationMinutes ?? this.durationMinutes,
       date: date,
       launchCount: launchCount ?? this.launchCount,
+      appIcon: appIcon ?? this.appIcon,
     );
   }
 }
