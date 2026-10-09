@@ -10,6 +10,7 @@ import 'analytics_screen.dart';
 import 'settings_screen.dart';
 import 'ai_assistant_screen.dart';
 import 'achievements_screen.dart';
+import 'time_planner_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -82,7 +83,17 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             onPressed: () => themeProvider.toggleTheme(),
           ),
           IconButton(
-            icon: const Icon(Icons.auto_awesome, color: AppColors.accentCyan),
+            icon: const Icon(Icons.calendar_month_outlined, color: AppColors.accentCyan),
+            tooltip: 'Time Planner & Schedule',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const TimePlannerScreen()),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.auto_awesome, color: AppColors.accentPink),
             tooltip: 'AI Coach',
             onPressed: () {
               Navigator.push(

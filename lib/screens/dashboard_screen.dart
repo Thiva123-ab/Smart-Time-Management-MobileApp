@@ -3,9 +3,11 @@ import '../theme/app_theme.dart';
 import '../data/local/database_helper.dart';
 import '../data/models/app_usage.dart';
 import '../data/models/goal.dart';
+import '../data/models/time_block.dart';
 import '../domain/app_category_manager.dart';
 import '../domain/productivity_score_engine.dart';
 import '../services/usage_tracking_service.dart';
+import 'time_planner_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final VoidCallback onStartFocus;
@@ -24,6 +26,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   List<AppUsage> _apps = [];
   List<Goal> _goals = [];
+  List<TimeBlock> _todayBlocks = [];
   ScoreResult _score = ProductivityScoreEngine.calculateScore(
     goalCompletionPercentage: 80,
     productiveMinutes: 240,
