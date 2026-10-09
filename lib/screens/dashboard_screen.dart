@@ -8,6 +8,7 @@ import '../domain/app_category_manager.dart';
 import '../domain/productivity_score_engine.dart';
 import '../services/usage_tracking_service.dart';
 import 'time_planner_screen.dart';
+import 'focus_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final VoidCallback onStartFocus;
@@ -69,6 +70,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final completedGoals = goals.where((g) => g.status == 'COMPLETED').length;
     final goalPercent = goals.isNotEmpty ? (completedGoals * 100) ~/ goals.length : 80;
 
+    final todayBlocks = await db.getTimeBlocksForDate(today);
+
     final scoreRes = ProductivityScoreEngine.calculateScore(
       goalCompletionPercentage: goalPercent,
       productiveMinutes: prod,
@@ -79,6 +82,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     setState(() {
       _apps = usages;
       _goals = goals;
+      _todayBlocks = todayBlocks;
       _totalMinutes = total;
       _productiveMinutes = prod;
       _distractingMinutes = dist;
