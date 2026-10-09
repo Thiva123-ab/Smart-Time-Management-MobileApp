@@ -6,6 +6,8 @@ import '../theme/theme_provider.dart';
 import '../data/local/database_helper.dart';
 import '../services/usage_tracking_service.dart';
 import '../services/data_export_service.dart';
+import '../data/models/user_profile.dart';
+import 'profile_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -15,6 +17,7 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  UserProfile? _profile;
   bool _hasPermission = false;
   bool _bedtimeMode = false;
   bool _dailyNotifications = true;
@@ -36,9 +39,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
     final hasPerm = await UsageTrackingService.hasPermission();
+    final profile = await UserProfile.load();
 
     setState(() {
       _hasPermission = hasPerm;
+      _profile = profile;
       _bedtimeMode = prefs.getBool('bedtime_mode') ?? false;
       _dailyNotifications = prefs.getBool('daily_notifications') ?? true;
       _geminiApiKey = prefs.getString('gemini_api_key') ?? '';
@@ -222,6 +227,64 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           children: [
+            // User Profile Card
+            if (_profile != null)
+              InkWell(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                  ).then((_) => _loadPreferences());
+                },
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface(context),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.primary.withOpacity(0.35)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withOpacity(0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.person, color: AppColors.primary, size: 28),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _profile!.name,
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                                color: AppColors.textPrimaryColor(context),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${_profile!.role} • ${_profile!.dailyTargetHours}h daily target',
+                              style: TextStyle(
+                                color: AppColors.textSecondaryColor(context),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.primary),
+                    ],
+                  ),
+                ),
+              ),
+
             // Permission Card
             Container(
               padding: const EdgeInsets.all(16),
