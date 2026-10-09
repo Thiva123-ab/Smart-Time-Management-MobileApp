@@ -250,6 +250,79 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               const SizedBox(height: 22),
 
+              // 4.5. Today's Schedule & Time Blocks
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text("Today's Schedule", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimaryColor(context))),
+                  TextButton.icon(
+                    icon: const Icon(Icons.arrow_forward, size: 14),
+                    label: Text(_todayBlocks.isEmpty ? 'Plan Day' : 'Manage', style: TextStyle(color: isDark ? AppColors.accentCyan : AppColors.primary)),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const TimePlannerScreen()),
+                      ).then((_) => _loadData());
+                    },
+                  ),
+                ],
+              ),
+              if (_todayBlocks.isEmpty)
+                InkWell(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const TimePlannerScreen()),
+                    ).then((_) => _loadData());
+                  },
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface(context),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.cardBorder(context)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withOpacity(0.12),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.calendar_today, color: AppColors.primary, size: 22),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'No Time Blocks Allocated Yet',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textPrimaryColor(context),
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Tap to schedule time blocks for your tasks today',
+                                style: TextStyle(color: AppColors.textMutedColor(context), fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.add_circle_outline, color: AppColors.primary, size: 22),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                ..._todayBlocks.take(3).map((b) => _scheduleBlockItem(b)),
+              const SizedBox(height: 22),
+
               // 5. Today's Goals
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -385,6 +458,76 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           Text(_formatTime(app.durationMinutes), style: TextStyle(color: AppColors.textPrimaryColor(context), fontWeight: FontWeight.bold, fontSize: 14)),
+        ],
+      ),
+    );
+  }
+
+  Widget _scheduleBlockItem(TimeBlock block) {
+    final isDone = block.isCompleted;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface(context),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isDone ? AppColors.success.withOpacity(0.3) : AppColors.cardBorder(context),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: isDone ? AppColors.success.withOpacity(0.15) : AppColors.primary.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              isDone ? Icons.check_circle : Icons.schedule,
+              color: isDone ? AppColors.success : (isDark ? AppColors.accentCyan : AppColors.primary),
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  block.title,
+                  style: TextStyle(
+                    color: AppColors.textPrimaryColor(context),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    decoration: isDone ? TextDecoration.lineThrough : null,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${block.startTime} - ${block.endTime} • ${block.category}',
+                  style: TextStyle(color: AppColors.textMutedColor(context), fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.play_circle_fill, color: AppColors.primary, size: 28),
+            tooltip: 'Start Focus',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => FocusScreen(
+                    initialTask: block.title,
+                    initialDurationMinutes: block.durationMinutes,
+                  ),
+                ),
+              ).then((_) => _loadData());
+            },
+          ),
         ],
       ),
     );
