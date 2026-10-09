@@ -246,6 +246,20 @@ class DatabaseHelper {
     return await db.insert('pomodoro_sessions', session.toMap());
   }
 
+  Future<int> getTotalFocusMinutesAllTime() async {
+    final db = await instance.database;
+    final result = await db.rawQuery('SELECT SUM(durationMinutes) as total FROM focus_sessions WHERE completed = 1');
+    final val = result.first['total'];
+    return val != null ? (val as num).toInt() : 0;
+  }
+
+  Future<int> getTotalCompletedGoalsCount() async {
+    final db = await instance.database;
+    final result = await db.rawQuery("SELECT COUNT(*) as count FROM goals WHERE status = 'COMPLETED'");
+    final val = result.first['count'];
+    return val != null ? (val as num).toInt() : 0;
+  }
+
   // Budgets & Limits
   Future<List<TimeBudget>> getAllBudgets() async {
     final db = await instance.database;

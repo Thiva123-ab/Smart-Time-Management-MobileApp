@@ -3,7 +3,6 @@ import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
 import '../data/local/database_helper.dart';
 import '../data/models/time_block.dart';
-import '../services/usage_tracking_service.dart';
 import 'focus_screen.dart';
 
 class TimePlannerScreen extends StatefulWidget {
