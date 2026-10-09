@@ -11,6 +11,7 @@ import 'settings_screen.dart';
 import 'ai_assistant_screen.dart';
 import 'achievements_screen.dart';
 import 'time_planner_screen.dart';
+import 'profile_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -119,6 +120,16 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.account_circle, color: AppColors.primaryLight, size: 26),
+            tooltip: 'User Profile',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfileScreen()),
               );
             },
           ),

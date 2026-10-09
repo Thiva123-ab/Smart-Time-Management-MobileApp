@@ -7,8 +7,10 @@ import '../data/models/time_block.dart';
 import '../domain/app_category_manager.dart';
 import '../domain/productivity_score_engine.dart';
 import '../services/usage_tracking_service.dart';
+import '../data/models/user_profile.dart';
 import 'time_planner_screen.dart';
 import 'focus_screen.dart';
+import 'profile_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final VoidCallback onStartFocus;
@@ -28,6 +30,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<AppUsage> _apps = [];
   List<Goal> _goals = [];
   List<TimeBlock> _todayBlocks = [];
+  UserProfile? _userProfile;
   ScoreResult _score = ProductivityScoreEngine.calculateScore(
     goalCompletionPercentage: 80,
     productiveMinutes: 240,
@@ -71,6 +74,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final goalPercent = goals.isNotEmpty ? (completedGoals * 100) ~/ goals.length : 80;
 
     final todayBlocks = await db.getTimeBlocksForDate(today);
+    final userProfile = await UserProfile.load();
 
     final scoreRes = ProductivityScoreEngine.calculateScore(
       goalCompletionPercentage: goalPercent,
@@ -83,6 +87,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _apps = usages;
       _goals = goals;
       _todayBlocks = todayBlocks;
+      _userProfile = userProfile;
       _totalMinutes = total;
       _productiveMinutes = prod;
       _distractingMinutes = dist;
@@ -99,9 +104,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   String get _greeting {
     final hour = DateTime.now().hour;
-    if (hour < 12) return 'Good Morning 👋';
-    if (hour < 17) return 'Good Afternoon ☀️';
-    return 'Good Evening 🌙';
+    final firstName = _userProfile?.name.trim().split(' ').first ?? '';
+    final nameStr = firstName.isNotEmpty ? ', $firstName' : '';
+    if (hour < 12) return 'Good Morning$nameStr 👋';
+    if (hour < 17) return 'Good Afternoon$nameStr ☀️';
+    return 'Good Evening$nameStr 🌙';
   }
 
   @override
@@ -120,15 +127,52 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: ListView(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             children: [
-              // 1. Header
-              Text(
-                _greeting,
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.textPrimaryColor(context)),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Take Control of Your Day',
-                style: TextStyle(color: AppColors.textSecondaryColor(context), fontSize: 14),
+              // 1. Header with Avatar
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _greeting,
+                          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimaryColor(context)),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _userProfile?.role ?? 'Take Control of Your Day',
+                          style: TextStyle(color: AppColors.textSecondaryColor(context), fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                  InkWell(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                      ).then((_) => _loadData());
+                    },
+                    borderRadius: BorderRadius.circular(24),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface(context),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: AppColors.primary.withOpacity(0.4), width: 1.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withOpacity(0.1),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(Icons.person, color: AppColors.primary, size: 22),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 20),
 
