@@ -7,7 +7,14 @@ import '../domain/pomodoro_engine.dart';
 import '../services/usage_tracking_service.dart';
 
 class FocusScreen extends StatefulWidget {
-  const FocusScreen({super.key});
+  final String? initialTask;
+  final int? initialDurationMinutes;
+
+  const FocusScreen({
+    super.key,
+    this.initialTask,
+    this.initialDurationMinutes,
+  });
 
   @override
   State<FocusScreen> createState() => _FocusScreenState();
@@ -18,7 +25,7 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
 
   // Focus Session State
   final FocusSessionManager _focusManager = FocusSessionManager();
-  final TextEditingController _taskController = TextEditingController(text: 'Deep Work');
+  late TextEditingController _taskController;
   int _selectedDurationMinutes = 25;
   Timer? _focusTimer;
   bool _isFocusActive = false;
@@ -36,6 +43,14 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _taskController = TextEditingController(
+      text: widget.initialTask != null && widget.initialTask!.isNotEmpty
+          ? widget.initialTask!
+          : 'Deep Work',
+    );
+    if (widget.initialDurationMinutes != null && widget.initialDurationMinutes! > 0) {
+      _selectedDurationMinutes = widget.initialDurationMinutes!;
+    }
   }
 
   @override

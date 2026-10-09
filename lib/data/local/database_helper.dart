@@ -5,6 +5,7 @@ import '../models/time_budget.dart';
 import '../models/goal.dart';
 import '../models/focus_session.dart';
 import '../models/daily_score.dart';
+import '../models/time_block.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -24,8 +25,9 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _createDB,
+      onUpgrade: _onUpgrade,
     );
   }
 
@@ -150,6 +152,38 @@ class DatabaseHelper {
     for (var b in defaultBudgets) {
       await db.insert('time_budgets', b.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
     }
+
+    await db.execute('''
+      CREATE TABLE time_blocks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        category TEXT NOT NULL,
+        date TEXT NOT NULL,
+        startTime TEXT NOT NULL,
+        endTime TEXT NOT NULL,
+        durationMinutes INTEGER NOT NULL,
+        isCompleted INTEGER NOT NULL,
+        notes TEXT
+      )
+    ''');
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS time_blocks (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          title TEXT NOT NULL,
+          category TEXT NOT NULL,
+          date TEXT NOT NULL,
+          startTime TEXT NOT NULL,
+          endTime TEXT NOT NULL,
+          durationMinutes INTEGER NOT NULL,
+          isCompleted INTEGER NOT NULL,
+          notes TEXT
+        )
+      ''');
+    }
   }
 
   // App Usage
@@ -271,6 +305,43 @@ class DatabaseHelper {
     );
   }
 
+  // Time Blocks (Scheduled Tasks)
+  Future<int> insertTimeBlock(TimeBlock block) async {
+    final db = await instance.database;
+    return await db.insert('time_blocks', block.toMap());
+  }
+
+  Future<int> updateTimeBlock(TimeBlock block) async {
+    final db = await instance.database;
+    return await db.update('time_blocks', block.toMap(), where: 'id = ?', whereArgs: [block.id]);
+  }
+
+  Future<int> deleteTimeBlock(int id) async {
+    final db = await instance.database;
+    return await db.delete('time_blocks', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<List<TimeBlock>> getTimeBlocksForDate(String date) async {
+    final db = await instance.database;
+    final result = await db.query(
+      'time_blocks',
+      where: 'date = ?',
+      whereArgs: [date],
+      orderBy: 'startTime ASC',
+    );
+    return result.map((json) => TimeBlock.fromMap(json)).toList();
+  }
+
+  Future<void> toggleTimeBlock(int id, bool isCompleted) async {
+    final db = await instance.database;
+    await db.update(
+      'time_blocks',
+      {'isCompleted': isCompleted ? 1 : 0},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
   // Clear data
   Future<void> clearTodayUsage(String date) async {
     final db = await instance.database;
@@ -284,5 +355,6 @@ class DatabaseHelper {
     await db.delete('focus_sessions');
     await db.delete('pomodoro_sessions');
     await db.delete('daily_scores');
+    await db.delete('time_blocks');
   }
 }
