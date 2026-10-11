@@ -11,6 +11,7 @@ import '../data/models/user_profile.dart';
 import 'time_planner_screen.dart';
 import 'focus_screen.dart';
 import 'profile_screen.dart';
+import '../widgets/app_icon_widget.dart';
 
 class DashboardScreen extends StatefulWidget {
   final VoidCallback onStartFocus;

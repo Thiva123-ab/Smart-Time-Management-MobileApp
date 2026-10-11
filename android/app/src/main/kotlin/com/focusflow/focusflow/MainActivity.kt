@@ -88,9 +88,18 @@ class MainActivity : FlutterActivity() {
 
     private fun getAppIconBytes(pm: PackageManager, pkg: String): ByteArray? {
         return try {
-            val drawable: Drawable = pm.getApplicationIcon(pkg)
-            val width = if (drawable.intrinsicWidth > 0) drawable.intrinsicWidth else 96
-            val height = if (drawable.intrinsicHeight > 0) drawable.intrinsicHeight else 96
+            val drawable: Drawable = try {
+                val appInfo = pm.getApplicationInfo(pkg, 0)
+                appInfo.loadIcon(pm) ?: pm.getApplicationIcon(pkg)
+            } catch (_: Exception) {
+                pm.getApplicationIcon(pkg)
+            }
+
+            val intrinsicW = drawable.intrinsicWidth
+            val intrinsicH = drawable.intrinsicHeight
+            val width = if (intrinsicW > 0) intrinsicW else 108
+            val height = if (intrinsicH > 0) intrinsicH else 108
+
             val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
             drawable.setBounds(0, 0, canvas.width, canvas.height)
@@ -98,7 +107,7 @@ class MainActivity : FlutterActivity() {
 
             val scaled = Bitmap.createScaledBitmap(bitmap, 72, 72, true)
             val outputStream = ByteArrayOutputStream()
-            scaled.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
+            scaled.compress(Bitmap.CompressFormat.PNG, 90, outputStream)
             outputStream.toByteArray()
         } catch (_: Exception) {
             null
@@ -113,20 +122,38 @@ class MainActivity : FlutterActivity() {
         val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
             ?: return emptyList()
 
-        val usageStatsList: List<UsageStats> = usageStatsManager.queryUsageStats(
-            UsageStatsManager.INTERVAL_DAILY,
-            startTime,
-            endTime
-        ) ?: return emptyList()
-
-        val pm = packageManager
         val aggregated = mutableMapOf<String, Long>()
 
-        for (stat in usageStatsList) {
-            val pkg = stat.packageName ?: continue
-            val time = stat.totalTimeInForeground
-            if (time > 0) {
-                aggregated[pkg] = (aggregated[pkg] ?: 0L) + time
+        // 1. Try aggregated stats query for exact timestamp range
+        val aggregatedStats = try {
+            usageStatsManager.queryAndAggregateUsageStats(startTime, endTime)
+        } catch (_: Exception) {
+            emptyMap<String, UsageStats>()
+        }
+
+        if (aggregatedStats.isNotEmpty()) {
+            for ((pkg, stat) in aggregatedStats) {
+                val time = stat.totalTimeInForeground
+                if (time > 0) {
+                    aggregated[pkg] = time
+                }
+            }
+        }
+
+        // 2. Fallback to interval query if aggregated map was empty
+        if (aggregated.isEmpty()) {
+            val usageStatsList: List<UsageStats> = usageStatsManager.queryUsageStats(
+                UsageStatsManager.INTERVAL_DAILY,
+                startTime,
+                endTime
+            ) ?: emptyList()
+
+            for (stat in usageStatsList) {
+                val pkg = stat.packageName ?: continue
+                val time = stat.totalTimeInForeground
+                if (time > 0) {
+                    aggregated[pkg] = (aggregated[pkg] ?: 0L) + time
+                }
             }
         }
 

@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../data/models/app_usage.dart';
+import '../data/local/database_helper.dart';
 import '../domain/app_category_manager.dart';
 
 class UsageTrackingService {
@@ -33,7 +34,7 @@ class UsageTrackingService {
     }
     try {
       final Uint8List? icon = await _channel.invokeMethod('getAppIcon', {'packageName': packageName});
-      if (icon != null) {
+      if (icon != null && icon.isNotEmpty) {
         _iconCache[packageName] = icon;
       }
       return icon;
@@ -42,11 +43,17 @@ class UsageTrackingService {
     }
   }
 
-  static Future<List<AppUsage>> fetchTodayUsage() async {
-    final date = todayDate;
+  static Future<List<AppUsage>> fetchTodayUsage() => fetchUsageForDate(DateTime.now());
+
+  static Future<List<AppUsage>> fetchUsageForDate(DateTime targetDate) async {
+    final dateStr = DateFormat('yyyy-MM-dd').format(targetDate);
     final now = DateTime.now();
-    final startOfDay = DateTime(now.year, now.month, now.day).millisecondsSinceEpoch;
-    final endOfDay = now.millisecondsSinceEpoch;
+    final isToday = targetDate.year == now.year && targetDate.month == now.month && targetDate.day == now.day;
+
+    final startOfDay = DateTime(targetDate.year, targetDate.month, targetDate.day, 0, 0, 0).millisecondsSinceEpoch;
+    final endOfDay = isToday
+        ? now.millisecondsSinceEpoch
+        : DateTime(targetDate.year, targetDate.month, targetDate.day, 23, 59, 59, 999).millisecondsSinceEpoch;
 
     final permitted = await hasPermission();
 
@@ -57,15 +64,15 @@ class UsageTrackingService {
           'endTime': endOfDay,
         });
 
-        if (rawStats != null) {
-          return rawStats.map((item) {
+        if (rawStats != null && rawStats.isNotEmpty) {
+          final list = rawStats.map((item) {
             final pkg = item['packageName'] as String;
             final name = item['appName'] as String;
             final duration = item['durationMinutes'] as int;
             final launches = item['launchCount'] as int? ?? 1;
             final iconBytes = item['appIcon'] as Uint8List?;
 
-            if (iconBytes != null) {
+            if (iconBytes != null && iconBytes.isNotEmpty) {
               _iconCache[pkg] = iconBytes;
             }
 
@@ -76,16 +83,40 @@ class UsageTrackingService {
               startTime: startOfDay,
               endTime: endOfDay,
               durationMinutes: duration,
-              date: date,
+              date: dateStr,
               launchCount: launches,
-              appIcon: iconBytes,
+              appIcon: iconBytes ?? _iconCache[pkg],
             );
           }).toList();
+
+          return list;
         }
       } catch (_) {}
     }
 
-    // Return sample starter data only if Usage Access permission is not granted yet
+    // Fallback: check SQLite database for historical saved usage for that date
+    try {
+      final dbList = await DatabaseHelper.instance.getUsageForDate(dateStr);
+      if (dbList.isNotEmpty) {
+        return dbList.map((app) {
+          final cachedIcon = _iconCache[app.packageName];
+          if (cachedIcon != null && app.appIcon == null) {
+            return app.copyWith(appIcon: cachedIcon);
+          }
+          return app;
+        }).toList();
+      }
+    } catch (_) {}
+
+    // Return sample starter data only if permission is not granted yet
+    if (!permitted) {
+      return _getSampleData(dateStr, startOfDay, endOfDay);
+    }
+
+    return [];
+  }
+
+  static List<AppUsage> _getSampleData(String date, int startOfDay, int endOfDay) {
     return [
       AppUsage(
         packageName: 'com.google.android.youtube',
