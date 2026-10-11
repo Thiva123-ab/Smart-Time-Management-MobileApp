@@ -200,6 +200,9 @@ class _UsageScreenState extends State<UsageScreen> {
                 date: _dateString(_selectedDate),
                 enabled: true,
               );
+              Navigator.pop(ctx);
+              final messenger = ScaffoldMessenger.of(context);
+
               await DatabaseHelper.instance.setAppLimit(limitObj);
               setState(() {
                 _appLimits[app.packageName] = newLimit;
@@ -208,14 +211,12 @@ class _UsageScreenState extends State<UsageScreen> {
               // Sync to Android background blocker service
               await UsageTrackingService.syncLimitsToNative(_appLimits);
 
-              if (mounted) {
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Daily limit active: $newLimit mins for ${app.appName} (will be blocked when exceeded)'),
-                    backgroundColor: AppColors.surfaceVariant(context),
-                  ),
-                );
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text('Daily limit active: $newLimit mins for ${app.appName} (will be blocked when exceeded)'),
+                  backgroundColor: AppColors.surfaceVariant(context),
+                ),
+              );
 
                 // Check overlay permission
                 final hasOverlay = await UsageTrackingService.hasOverlayPermission();
@@ -255,7 +256,6 @@ class _UsageScreenState extends State<UsageScreen> {
                     ),
                   );
                 }
-              }
             },
             child: const Text('Save Limit'),
           ),
