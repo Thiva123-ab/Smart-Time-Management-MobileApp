@@ -157,6 +157,7 @@ class MainActivity : FlutterActivity() {
             }
         }
 
+        val pm = packageManager
         val resultList = mutableListOf<Map<String, Any>>()
 
         for ((pkg, timeMillis) in aggregated) {
