@@ -28,6 +28,33 @@ class UsageTrackingService {
     } catch (_) {}
   }
 
+  static Future<bool> hasOverlayPermission() async {
+    try {
+      final bool result = await _channel.invokeMethod('hasOverlayPermission');
+      return result;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  static Future<void> requestOverlayPermission() async {
+    try {
+      await _channel.invokeMethod('requestOverlayPermission');
+    } catch (_) {}
+  }
+
+  static Future<void> syncLimitsToNative(Map<String, int> limits) async {
+    try {
+      await _channel.invokeMethod('updateAppLimits', {'limits': limits});
+    } catch (_) {}
+  }
+
+  static Future<void> startBlockerService() async {
+    try {
+      await _channel.invokeMethod('startBlockerService');
+    } catch (_) {}
+  }
+
   static Future<Uint8List?> fetchAppIcon(String packageName) async {
     if (_iconCache.containsKey(packageName)) {
       return _iconCache[packageName];

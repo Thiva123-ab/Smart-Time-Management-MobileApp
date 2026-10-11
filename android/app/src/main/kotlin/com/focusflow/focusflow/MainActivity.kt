@@ -44,6 +44,56 @@ class MainActivity : FlutterActivity() {
                     val iconBytes = if (pkg.isNotEmpty()) getAppIconBytes(packageManager, pkg) else null
                     result.success(iconBytes)
                 }
+                "hasOverlayPermission" -> {
+                    val hasPerm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        Settings.canDrawOverlays(this)
+                    } else {
+                        true
+                    }
+                    result.success(hasPerm)
+                }
+                "requestOverlayPermission" -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+                        val intent = Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            android.net.Uri.parse("package:$packageName")
+                        ).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        }
+                        startActivity(intent)
+                    }
+                    result.success(true)
+                }
+                "updateAppLimits" -> {
+                    val limits = call.argument<Map<String, Int>>("limits") ?: emptyMap()
+                    val prefs = getSharedPreferences(AppBlockerService.PREFS_NAME, Context.MODE_PRIVATE)
+                    val editor = prefs.edit()
+                    editor.clear()
+                    for ((pkg, limit) in limits) {
+                        editor.putInt(pkg, limit)
+                    }
+                    editor.apply()
+
+                    // If limits exist and usage permission is granted, ensure blocker service is running
+                    if (limits.isNotEmpty() && hasUsageStatsPermission()) {
+                        try {
+                            AppBlockerService.startService(this)
+                        } catch (_: Exception) {}
+                    } else if (limits.isEmpty()) {
+                        try {
+                            AppBlockerService.stopService(this)
+                        } catch (_: Exception) {}
+                    }
+                    result.success(true)
+                }
+                "startBlockerService" -> {
+                    if (hasUsageStatsPermission()) {
+                        try {
+                            AppBlockerService.startService(this)
+                        } catch (_: Exception) {}
+                    }
+                    result.success(true)
+                }
                 else -> {
                     result.notImplemented()
                 }

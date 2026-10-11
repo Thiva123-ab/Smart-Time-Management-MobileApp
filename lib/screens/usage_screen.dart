@@ -70,6 +70,10 @@ class _UsageScreenState extends State<UsageScreen> {
       }
     }
 
+    if (limitMap.isNotEmpty) {
+      UsageTrackingService.syncLimitsToNative(limitMap);
+    }
+
     int total = 0;
     int prod = 0;
     int dist = 0;
@@ -200,14 +204,57 @@ class _UsageScreenState extends State<UsageScreen> {
               setState(() {
                 _appLimits[app.packageName] = newLimit;
               });
+
+              // Sync to Android background blocker service
+              await UsageTrackingService.syncLimitsToNative(_appLimits);
+
               if (mounted) {
                 Navigator.pop(ctx);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Daily limit set: $newLimit mins for ${app.appName}'),
+                    content: Text('Daily limit active: $newLimit mins for ${app.appName} (will be blocked when exceeded)'),
                     backgroundColor: AppColors.surfaceVariant(context),
                   ),
                 );
+
+                // Check overlay permission
+                final hasOverlay = await UsageTrackingService.hasOverlayPermission();
+                if (!hasOverlay && mounted) {
+                  showDialog(
+                    context: context,
+                    builder: (dCtx) => AlertDialog(
+                      backgroundColor: AppColors.surface(context),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      title: const Row(
+                        children: [
+                          Icon(Icons.shield_outlined, color: AppColors.primary),
+                          SizedBox(width: 10),
+                          Text('App Lock Permission'),
+                        ],
+                      ),
+                      content: Text(
+                        'To block ${app.appName} when the daily time limit is exceeded, please allow "Display over other apps" permission.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(dCtx),
+                          child: const Text('Later'),
+                        ),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                          ),
+                          onPressed: () {
+                            Navigator.pop(dCtx);
+                            UsageTrackingService.requestOverlayPermission();
+                          },
+                          child: const Text('Enable Permission'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
               }
             },
             child: const Text('Save Limit'),

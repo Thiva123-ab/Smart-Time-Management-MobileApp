@@ -102,6 +102,20 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
   }
 
   void _showAddOrEditDialog({TimeBlock? blockToEdit}) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final targetDate = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
+
+    if (targetDate.isBefore(today)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cannot plan or schedule time blocks for past dates.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
     final titleController = TextEditingController(text: blockToEdit?.title ?? '');
     final notesController = TextEditingController(text: blockToEdit?.notes ?? '');
     String selectedCategory = blockToEdit?.category ?? 'Study';
@@ -481,6 +495,19 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
   }
 
   void _addQuickPreset(String title, String category, int startHour, int startMin, int endHour, int endMin) async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final targetDate = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
+    if (targetDate.isBefore(today)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cannot add tasks to past dates.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
     final block = TimeBlock(
       title: title,
       category: category,
@@ -503,6 +530,11 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
     final completedBlocks = _blocks.where((b) => b.isCompleted).length;
     final progress = _blocks.isNotEmpty ? (completedBlocks / _blocks.length) : 0.0;
 
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final targetDate = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
+    final isPastDate = targetDate.isBefore(today);
+
     return Scaffold(
       backgroundColor: AppColors.background(context),
       appBar: AppBar(
@@ -521,9 +553,9 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
             onPressed: () async {
               final picked = await showDatePicker(
                 context: context,
-                initialDate: _selectedDate,
-                firstDate: DateTime.now().subtract(const Duration(days: 365)),
-                lastDate: DateTime.now().add(const Duration(days: 365)),
+                initialDate: _selectedDate.isBefore(today) ? today : _selectedDate,
+                firstDate: today,
+                lastDate: today.add(const Duration(days: 365)),
               );
               if (picked != null) {
                 setState(() => _selectedDate = picked);
@@ -531,11 +563,12 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
               }
             },
           ),
-          IconButton(
-            icon: const Icon(Icons.add_circle, color: AppColors.primary, size: 28),
-            tooltip: 'Add Time Block',
-            onPressed: () => _showAddOrEditDialog(),
-          ),
+          if (!isPastDate)
+            IconButton(
+              icon: const Icon(Icons.add_circle, color: AppColors.primary, size: 28),
+              tooltip: 'Add Time Block',
+              onPressed: () => _showAddOrEditDialog(),
+            ),
           const SizedBox(width: 8),
         ],
       ),
@@ -544,6 +577,29 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
           children: [
             // Date Selector Strip
             _buildDateStrip(),
+
+            if (isPastDate)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                color: Colors.amber.withOpacity(0.15),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline, size: 18, color: Colors.amber),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Past Date (Read-Only) - New scheduling is disabled for past days.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? Colors.amber[200] : Colors.amber[900],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
 
             Expanded(
               child: _isLoading
@@ -595,13 +651,15 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add),
-        label: const Text('Add Time Block', style: TextStyle(fontWeight: FontWeight.bold)),
-        onPressed: () => _showAddOrEditDialog(),
-      ),
+      floatingActionButton: isPastDate
+          ? null
+          : FloatingActionButton.extended(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add),
+              label: const Text('Add Time Block', style: TextStyle(fontWeight: FontWeight.bold)),
+              onPressed: () => _showAddOrEditDialog(),
+            ),
     );
   }
 
@@ -621,7 +679,7 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: 14,
         itemBuilder: (ctx, index) {
-          final day = today.add(Duration(days: index - 3));
+          final day = today.add(Duration(days: index));
           final isSelected = day.year == _selectedDate.year &&
               day.month == _selectedDate.month &&
               day.day == _selectedDate.day;
