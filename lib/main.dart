@@ -4,8 +4,11 @@ import 'theme/app_theme.dart';
 import 'theme/theme_provider.dart';
 import 'screens/main_navigation_screen.dart';
 
+import 'services/schedule_notification_service.dart';
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  ScheduleNotificationService.instance.start();
   runApp(
     ChangeNotifierProvider(
       create: (_) => ThemeProvider(),

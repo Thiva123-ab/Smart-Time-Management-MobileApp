@@ -55,6 +55,22 @@ class UsageTrackingService {
     } catch (_) {}
   }
 
+  static Future<void> showNotification({
+    required int id,
+    required String title,
+    required String body,
+    String subText = 'Schedule Reminder',
+  }) async {
+    try {
+      await _channel.invokeMethod('showNotification', {
+        'id': id,
+        'title': title,
+        'body': body,
+        'subText': subText,
+      });
+    } catch (_) {}
+  }
+
   static Future<Uint8List?> fetchAppIcon(String packageName) async {
     if (_iconCache.containsKey(packageName)) {
       return _iconCache[packageName];

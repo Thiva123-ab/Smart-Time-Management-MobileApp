@@ -94,6 +94,14 @@ class MainActivity : FlutterActivity() {
                     }
                     result.success(true)
                 }
+                "showNotification" -> {
+                    val id = call.argument<Int>("id") ?: 101
+                    val title = call.argument<String>("title") ?: "FocusFlow"
+                    val body = call.argument<String>("body") ?: ""
+                    val subText = call.argument<String>("subText") ?: "Schedule"
+                    TaskNotificationManager.showNotification(this, id, title, body, subText)
+                    result.success(true)
+                }
                 else -> {
                     result.notImplemented()
                 }
