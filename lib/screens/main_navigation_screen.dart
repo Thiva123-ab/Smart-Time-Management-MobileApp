@@ -329,15 +329,24 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(9),
+              child: Image.asset(
+                'assets/images/logo.png',
+                width: 32,
+                height: 32,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.bolt, color: Colors.white, size: 20),
+                ),
               ),
-              child: const Icon(Icons.bolt, color: Colors.white, size: 20),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 10),
             Text(
               'FocusFlow',
               style: TextStyle(
