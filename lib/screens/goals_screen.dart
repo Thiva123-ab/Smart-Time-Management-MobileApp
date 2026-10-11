@@ -5,6 +5,7 @@ import '../data/models/goal.dart';
 import '../data/models/time_budget.dart';
 import '../domain/app_category_manager.dart';
 import '../services/usage_tracking_service.dart';
+import 'focus_screen.dart';
 
 class GoalsScreen extends StatefulWidget {
   const GoalsScreen({super.key});
@@ -39,6 +40,15 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
     final today = UsageTrackingService.todayDate;
 
     final goals = await db.getGoalsForDate(today);
+    // Sort goals: Incomplete/Pending goals first, Completed goals last
+    goals.sort((a, b) {
+      final aDone = a.status == 'COMPLETED';
+      final bDone = b.status == 'COMPLETED';
+      if (!aDone && bDone) return -1;
+      if (aDone && !bDone) return 1;
+      return (a.id ?? 0).compareTo(b.id ?? 0);
+    });
+
     final budgets = await db.getAllBudgets();
     final usages = await db.getUsageForDate(today);
 
@@ -383,7 +393,6 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
                           final progress = g.targetMinutes > 0 ? (g.completedMinutes / g.targetMinutes).clamp(0.0, 1.0) : 0.0;
                           return Container(
                             margin: const EdgeInsets.only(bottom: 12),
-                            padding: const EdgeInsets.all(14),
                             decoration: BoxDecoration(
                               color: AppColors.surface(context),
                               borderRadius: BorderRadius.circular(16),
@@ -391,62 +400,102 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
                                 color: isDone ? AppColors.success.withOpacity(0.5) : AppColors.cardBorder(context),
                               ),
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(16),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => FocusScreen(
+                                      initialTask: g.title,
+                                      initialDurationMinutes: g.targetMinutes > 0 ? g.targetMinutes : 25,
+                                      autoStartFocus: true,
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.all(14),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    IconButton(
-                                      icon: Icon(
-                                        isDone ? Icons.check_circle : Icons.radio_button_unchecked,
-                                        color: isDone ? AppColors.success : AppColors.textSecondaryColor(context),
-                                        size: 24,
-                                      ),
-                                      onPressed: () => _toggleGoal(g),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            g.title,
-                                            style: TextStyle(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.bold,
-                                              color: isDone ? AppColors.textMutedColor(context) : AppColors.textPrimaryColor(context),
-                                              decoration: isDone ? TextDecoration.lineThrough : null,
-                                            ),
+                                    Row(
+                                      children: [
+                                        IconButton(
+                                          icon: Icon(
+                                            isDone ? Icons.check_circle : Icons.radio_button_unchecked,
+                                            color: isDone ? AppColors.success : AppColors.textSecondaryColor(context),
+                                            size: 24,
                                           ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            '${g.category} • Target: ${_formatTime(g.targetMinutes)}',
-                                            style: TextStyle(fontSize: 11, color: AppColors.textMutedColor(context)),
+                                          onPressed: () => _toggleGoal(g),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                g.title,
+                                                style: TextStyle(
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: isDone ? AppColors.textMutedColor(context) : AppColors.textPrimaryColor(context),
+                                                  decoration: isDone ? TextDecoration.lineThrough : null,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                '${g.category} • Target: ${_formatTime(g.targetMinutes)}',
+                                                style: TextStyle(fontSize: 11, color: AppColors.textMutedColor(context)),
+                                              ),
+                                            ],
                                           ),
-                                        ],
-                                      ),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.primary.withOpacity(0.12),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(Icons.play_arrow_rounded, size: 16, color: AppColors.primary),
+                                              const SizedBox(width: 2),
+                                              Text(
+                                                'Start',
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: isDark ? AppColors.accentCyan : AppColors.primary,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        IconButton(
+                                          icon: Icon(Icons.delete_outline, size: 20, color: AppColors.textMutedColor(context)),
+                                          onPressed: () {
+                                            if (g.id != null) _deleteGoal(g.id!);
+                                          },
+                                        ),
+                                      ],
                                     ),
-                                    IconButton(
-                                      icon: Icon(Icons.delete_outline, size: 20, color: AppColors.textMutedColor(context)),
-                                      onPressed: () {
-                                        if (g.id != null) _deleteGoal(g.id!);
-                                      },
+                                    const SizedBox(height: 8),
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(4),
+                                      child: LinearProgressIndicator(
+                                        value: isDone ? 1.0 : progress,
+                                        backgroundColor: AppColors.surfaceVariant(context),
+                                        valueColor: AlwaysStoppedAnimation<Color>(
+                                          isDone ? AppColors.success : AppColors.primary,
+                                        ),
+                                        minHeight: 5,
+                                      ),
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 8),
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(4),
-                                  child: LinearProgressIndicator(
-                                    value: isDone ? 1.0 : progress,
-                                    backgroundColor: AppColors.surfaceVariant(context),
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      isDone ? AppColors.success : AppColors.primary,
-                                    ),
-                                    minHeight: 5,
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
                           );
                         }),

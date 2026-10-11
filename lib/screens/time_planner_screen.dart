@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
@@ -17,12 +18,19 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
   List<TimeBlock> _blocks = [];
   bool _isLoading = true;
 
+  // Transport live tracker state
+  bool _isTrackingTransport = false;
+  DateTime? _transportStartTime;
+  int _transportElapsedSeconds = 0;
+  Timer? _transportTimer;
+
   final List<String> _categories = [
     'Study',
     'Work',
     'Coding',
     'Reading',
     'Fitness',
+    'Transport',
     'Personal',
     'Meeting',
     'Break',
@@ -35,12 +43,34 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
     _loadBlocks();
   }
 
+  @override
+  void dispose() {
+    _transportTimer?.cancel();
+    super.dispose();
+  }
+
   String _dateString(DateTime dt) => DateFormat('yyyy-MM-dd').format(dt);
 
   Future<void> _loadBlocks() async {
     setState(() => _isLoading = true);
     final dateStr = _dateString(_selectedDate);
     final blocks = await DatabaseHelper.instance.getTimeBlocksForDate(dateStr);
+
+    // Smart priority sorting:
+    // 1. Incomplete/Pending tasks FIRST (sorted by start time)
+    // 2. Completed tasks LAST (moved to bottom)
+    blocks.sort((a, b) {
+      if (!a.isCompleted && b.isCompleted) return -1;
+      if (a.isCompleted && !b.isCompleted) return 1;
+
+      // Both incomplete or both completed -> sort by start time
+      final aTod = _parseTimeOfDay(a.startTime);
+      final bTod = _parseTimeOfDay(b.startTime);
+      final aMin = aTod.hour * 60 + aTod.minute;
+      final bMin = bTod.hour * 60 + bTod.minute;
+      return aMin.compareTo(bMin);
+    });
+
     setState(() {
       _blocks = blocks;
       _isLoading = false;
@@ -59,6 +89,8 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
         return const Color(0xFFE17055);
       case 'fitness':
         return const Color(0xFF00B894);
+      case 'transport':
+        return const Color(0xFF00B4D8);
       case 'personal':
         return const Color(0xFFFD79A8);
       case 'meeting':
@@ -82,6 +114,8 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
         return Icons.menu_book_outlined;
       case 'fitness':
         return Icons.fitness_center_outlined;
+      case 'transport':
+        return Icons.directions_bus_rounded;
       case 'personal':
         return Icons.person_outline;
       case 'meeting':
@@ -120,13 +154,35 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
     final notesController = TextEditingController(text: blockToEdit?.notes ?? '');
     String selectedCategory = blockToEdit?.category ?? 'Study';
 
-    TimeOfDay startTime = blockToEdit != null
-        ? _parseTimeOfDay(blockToEdit.startTime)
-        : const TimeOfDay(hour: 9, minute: 0);
+    final isToday = targetDate.year == now.year && targetDate.month == now.month && targetDate.day == now.day;
 
-    TimeOfDay endTime = blockToEdit != null
-        ? _parseTimeOfDay(blockToEdit.endTime)
-        : const TimeOfDay(hour: 10, minute: 30);
+    TimeOfDay defaultStart;
+    TimeOfDay defaultEnd;
+    if (blockToEdit != null) {
+      defaultStart = _parseTimeOfDay(blockToEdit.startTime);
+      defaultEnd = _parseTimeOfDay(blockToEdit.endTime);
+    } else {
+      if (isToday) {
+        // Round up to nearest 5 minutes from now
+        int nextMinute = ((now.minute / 5).ceil()) * 5;
+        int nextHour = now.hour;
+        if (nextMinute >= 60) {
+          nextHour = (nextHour + 1) % 24;
+          nextMinute = 0;
+        }
+        defaultStart = TimeOfDay(hour: nextHour, minute: nextMinute);
+
+        // Default 1 hour later
+        int endHour = (nextHour + 1) % 24;
+        defaultEnd = TimeOfDay(hour: endHour, minute: nextMinute);
+      } else {
+        defaultStart = const TimeOfDay(hour: 9, minute: 0);
+        defaultEnd = const TimeOfDay(hour: 10, minute: 30);
+      }
+    }
+
+    TimeOfDay startTime = defaultStart;
+    TimeOfDay endTime = defaultEnd;
 
     int calculatedDuration = _calculateDuration(startTime, endTime);
 
@@ -240,13 +296,27 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                   const SizedBox(height: 18),
 
                   // Time Selection (Start Time -> End Time)
-                  Text(
-                    'Time Slot',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textSecondaryColor(context),
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Time Slot',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondaryColor(context),
+                        ),
+                      ),
+                      if (isToday)
+                        Text(
+                          'Current: ${DateFormat('hh:mm a').format(DateTime.now())}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.accentCyan,
+                          ),
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 10),
                   Row(
@@ -260,6 +330,20 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                               initialTime: startTime,
                             );
                             if (picked != null) {
+                              final currentTime = DateTime.now();
+                              final pickedMinutes = picked.hour * 60 + picked.minute;
+                              final currentMinutes = currentTime.hour * 60 + currentTime.minute;
+
+                              if (isToday && pickedMinutes < currentMinutes) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Cannot select a past time for today. Start time must be from current time onwards.'),
+                                    backgroundColor: Colors.redAccent,
+                                  ),
+                                );
+                                return;
+                              }
+
                               setSheetState(() {
                                 startTime = picked;
                                 calculatedDuration = _calculateDuration(startTime, endTime);
@@ -307,6 +391,20 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                               initialTime: endTime,
                             );
                             if (picked != null) {
+                              final currentTime = DateTime.now();
+                              final pickedMinutes = picked.hour * 60 + picked.minute;
+                              final currentMinutes = currentTime.hour * 60 + currentTime.minute;
+
+                              if (isToday && pickedMinutes <= currentMinutes) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('End time cannot be in the past.'),
+                                    backgroundColor: Colors.redAccent,
+                                  ),
+                                );
+                                return;
+                              }
+
                               setSheetState(() {
                                 endTime = picked;
                                 calculatedDuration = _calculateDuration(startTime, endTime);
@@ -402,6 +500,20 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                           return;
                         }
 
+                        // Check past time validation on submit for today
+                        final currentTime = DateTime.now();
+                        final startMinutes = startTime.hour * 60 + startTime.minute;
+                        final currentMinutes = currentTime.hour * 60 + currentTime.minute;
+                        if (isToday && startMinutes < currentMinutes) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Start time cannot be in the past. Please select current time or later.'),
+                              backgroundColor: Colors.redAccent,
+                            ),
+                          );
+                          return;
+                        }
+
                         final block = TimeBlock(
                           id: blockToEdit?.id,
                           title: title,
@@ -489,9 +601,79 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
         builder: (_) => FocusScreen(
           initialTask: block.title,
           initialDurationMinutes: block.durationMinutes,
+          autoStartFocus: true,
         ),
       ),
     );
+  }
+
+  void _startTransportTracking() {
+    setState(() {
+      _isTrackingTransport = true;
+      _transportStartTime = DateTime.now();
+      _transportElapsedSeconds = 0;
+    });
+
+    _transportTimer?.cancel();
+    _transportTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          _transportElapsedSeconds++;
+        });
+      }
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('🚌 Transport timer started! Time is now calculating live.'),
+        backgroundColor: Color(0xFF00B4D8),
+      ),
+    );
+  }
+
+  Future<void> _stopAndSaveTransportTracking() async {
+    _transportTimer?.cancel();
+    final startDt = _transportStartTime ?? DateTime.now().subtract(Duration(seconds: _transportElapsedSeconds));
+    final endDt = DateTime.now();
+
+    int durationMin = (_transportElapsedSeconds / 60).round();
+    if (durationMin < 1) durationMin = 1;
+
+    final block = TimeBlock(
+      title: 'Transport / Commute',
+      category: 'Transport',
+      date: _dateString(_selectedDate),
+      startTime: DateFormat('hh:mm a').format(startDt),
+      endTime: DateFormat('hh:mm a').format(endDt),
+      durationMinutes: durationMin,
+      isCompleted: true,
+      notes: 'Recorded via live Transport Timer (${_formatStopwatch(_transportElapsedSeconds)})',
+    );
+
+    await DatabaseHelper.instance.insertTimeBlock(block);
+
+    setState(() {
+      _isTrackingTransport = false;
+      _transportStartTime = null;
+      _transportElapsedSeconds = 0;
+    });
+
+    _loadBlocks();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✅ Transport completed: $durationMin mins logged to Schedule!'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    }
+  }
+
+  String _formatStopwatch(int totalSeconds) {
+    final m = totalSeconds ~/ 60;
+    final s = totalSeconds % 60;
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
   void _addQuickPreset(String title, String category, int startHour, int startMin, int endHour, int endMin) async {
@@ -508,15 +690,46 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
       return;
     }
 
+    final isToday = targetDate.year == now.year && targetDate.month == now.month && targetDate.day == now.day;
+    int finalStartHour = startHour;
+    int finalStartMin = startMin;
+    int finalEndHour = endHour;
+    int finalEndMin = endMin;
+
+    if (isToday) {
+      final currentTotalMin = now.hour * 60 + now.minute;
+      final presetStartMin = startHour * 60 + startMin;
+
+      // If preset time is already past today, shift start time to now + 5 minutes
+      if (presetStartMin < currentTotalMin) {
+        int nextMinute = ((now.minute / 5).ceil()) * 5;
+        int nextHour = now.hour;
+        if (nextMinute >= 60) {
+          nextHour = (nextHour + 1) % 24;
+          nextMinute = 0;
+        }
+        finalStartHour = nextHour;
+        finalStartMin = nextMinute;
+
+        final duration = _calculateDuration(
+          TimeOfDay(hour: startHour, minute: startMin),
+          TimeOfDay(hour: endHour, minute: endMin),
+        );
+        int endTotalMin = (finalStartHour * 60 + finalStartMin + duration) % (24 * 60);
+        finalEndHour = endTotalMin ~/ 60;
+        finalEndMin = endTotalMin % 60;
+      }
+    }
+
     final block = TimeBlock(
       title: title,
       category: category,
       date: _dateString(_selectedDate),
-      startTime: _formatTimeOfDay(TimeOfDay(hour: startHour, minute: startMin)),
-      endTime: _formatTimeOfDay(TimeOfDay(hour: endHour, minute: endMin)),
+      startTime: _formatTimeOfDay(TimeOfDay(hour: finalStartHour, minute: finalStartMin)),
+      endTime: _formatTimeOfDay(TimeOfDay(hour: finalEndHour, minute: finalEndMin)),
       durationMinutes: _calculateDuration(
-        TimeOfDay(hour: startHour, minute: startMin),
-        TimeOfDay(hour: endHour, minute: endMin),
+        TimeOfDay(hour: finalStartHour, minute: finalStartMin),
+        TimeOfDay(hour: finalEndHour, minute: finalEndMin),
       ),
     );
     await DatabaseHelper.instance.insertTimeBlock(block);
@@ -612,6 +825,10 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                         children: [
                           // Daily Summary Card
                           _buildSummaryCard(totalMinutes, completedBlocks, progress, isDark),
+                          const SizedBox(height: 18),
+
+                          // Live Transport Commute Tracker Card
+                          _buildTransportTrackerCard(isDark),
                           const SizedBox(height: 18),
 
                           // Section Title
@@ -832,6 +1049,158 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
     );
   }
 
+  Widget _buildTransportTrackerCard(bool isDark) {
+    const transportColor = Color(0xFF00B4D8);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _isTrackingTransport
+            ? transportColor.withOpacity(0.12)
+            : AppColors.surface(context),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: _isTrackingTransport
+              ? transportColor
+              : AppColors.cardBorder(context),
+          width: _isTrackingTransport ? 1.8 : 1.0,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: transportColor.withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.directions_bus_filled_rounded,
+                  color: transportColor,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'Live Transport Tracker',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimaryColor(context),
+                          ),
+                        ),
+                        if (_isTrackingTransport) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.redAccent,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'LIVE',
+                              style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _isTrackingTransport
+                          ? 'Calculating travel duration in real-time...'
+                          : 'Unpredictable travel time? Start when you leave, end on arrival.',
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondaryColor(context)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          if (_isTrackingTransport) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceVariant(context),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.timer_outlined, size: 20, color: transportColor),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Travel Time: ',
+                        style: TextStyle(fontSize: 13, color: AppColors.textSecondaryColor(context)),
+                      ),
+                      Text(
+                        _formatStopwatch(_transportElapsedSeconds),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: transportColor,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    'Started: ${_transportStartTime != null ? DateFormat('hh:mm a').format(_transportStartTime!) : ''}',
+                    style: TextStyle(fontSize: 11, color: AppColors.textMutedColor(context)),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(
+              width: double.infinity,
+              height: 46,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.danger,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                icon: const Icon(Icons.stop_circle, size: 20),
+                label: const Text('End & Save Transport Block', style: TextStyle(fontWeight: FontWeight.bold)),
+                onPressed: _stopAndSaveTransportTracking,
+              ),
+            ),
+          ] else ...[
+            SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: transportColor,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  elevation: 0,
+                ),
+                icon: const Icon(Icons.play_arrow_rounded, size: 22),
+                label: const Text('Start Transport Commute', style: TextStyle(fontWeight: FontWeight.bold)),
+                onPressed: _startTransportTracking,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildTimeBlockCard(TimeBlock block, bool isDark) {
     final catColor = _getCategoryColor(block.category);
     final isDone = block.isCompleted;
@@ -848,19 +1217,22 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
           width: isDone ? 1.5 : 1,
         ),
       ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Custom checkbox
-                InkWell(
-                  onTap: () => _toggleBlockStatus(block),
-                  borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                    width: 26,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () => _startFocusForBlock(block),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Custom checkbox
+                  InkWell(
+                    onTap: () => _toggleBlockStatus(block),
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      width: 26,
                     height: 26,
                     decoration: BoxDecoration(
                       color: isDone ? AppColors.success : Colors.transparent,
@@ -1025,8 +1397,9 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildEmptyState(bool isDark) {
     return Container(
@@ -1096,6 +1469,12 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                 label: const Text('Workout (05:00 - 06:00 PM)'),
                 labelStyle: const TextStyle(fontSize: 11),
                 onPressed: () => _addQuickPreset('Workout & Exercise', 'Fitness', 17, 0, 18, 0),
+              ),
+              ActionChip(
+                avatar: const Icon(Icons.directions_bus_rounded, size: 14, color: Color(0xFF00B4D8)),
+                label: const Text('Live Transport Tracker'),
+                labelStyle: const TextStyle(fontSize: 11),
+                onPressed: _startTransportTracking,
               ),
             ],
           ),

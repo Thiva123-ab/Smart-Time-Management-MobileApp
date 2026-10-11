@@ -9,11 +9,13 @@ import '../services/usage_tracking_service.dart';
 class FocusScreen extends StatefulWidget {
   final String? initialTask;
   final int? initialDurationMinutes;
+  final bool autoStartFocus;
 
   const FocusScreen({
     super.key,
     this.initialTask,
     this.initialDurationMinutes,
+    this.autoStartFocus = false,
   });
 
   @override
@@ -50,6 +52,13 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
     );
     if (widget.initialDurationMinutes != null && widget.initialDurationMinutes! > 0) {
       _selectedDurationMinutes = widget.initialDurationMinutes!;
+    }
+    if (widget.autoStartFocus) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _startFocusSession();
+        }
+      });
     }
   }
 
