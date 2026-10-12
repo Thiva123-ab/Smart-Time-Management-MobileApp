@@ -3,7 +3,6 @@ import '../theme/app_theme.dart';
 import '../data/local/database_helper.dart';
 import '../data/models/goal.dart';
 import '../data/models/time_budget.dart';
-import '../domain/app_category_manager.dart';
 import '../services/usage_tracking_service.dart';
 import 'focus_screen.dart';
 

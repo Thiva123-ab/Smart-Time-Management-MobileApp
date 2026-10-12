@@ -1598,9 +1598,8 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
           ],
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildEmptyState(bool isDark) {
     return Container(
