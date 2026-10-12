@@ -173,23 +173,49 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
       defaultStart = _parseTimeOfDay(blockToEdit.startTime);
       defaultEnd = _parseTimeOfDay(blockToEdit.endTime);
     } else {
-      if (isToday) {
-        // Round up to nearest 5 minutes from now
-        int nextMinute = ((now.minute / 5).ceil()) * 5;
-        int nextHour = now.hour;
-        if (nextMinute >= 60) {
-          nextHour = (nextHour + 1) % 24;
-          nextMinute = 0;
-        }
-        defaultStart = TimeOfDay(hour: nextHour, minute: nextMinute);
+      // Find the next available non-conflicting time slot!
+      int candidateStart = isToday
+          ? (now.hour * 60 + ((now.minute / 5).ceil()) * 5)
+          : (9 * 60);
 
-        // Default 1 hour later
-        int endHour = (nextHour + 1) % 24;
-        defaultEnd = TimeOfDay(hour: endHour, minute: nextMinute);
-      } else {
-        defaultStart = const TimeOfDay(hour: 9, minute: 0);
-        defaultEnd = const TimeOfDay(hour: 10, minute: 30);
+      // Sort existing blocks by start time
+      final sortedBlocks = List<TimeBlock>.from(_blocks);
+      sortedBlocks.sort((a, b) => _timeToMinutes(a.startTime).compareTo(_timeToMinutes(b.startTime)));
+
+      // If the candidate start time conflicts with any existing block, push it after that block's end!
+      bool foundSlot = false;
+      int candidateDuration = 60; // 1 hour default
+      int searchLoops = 0;
+      while (!foundSlot && candidateStart + 15 < 24 * 60 && searchLoops < 30) {
+        searchLoops++;
+        int candidateEnd = candidateStart + candidateDuration;
+        TimeBlock? conflict;
+        for (final b in sortedBlocks) {
+          int bStart = _timeToMinutes(b.startTime);
+          int bEnd = _timeToMinutes(b.endTime);
+          if (bEnd <= bStart) bEnd += 24 * 60;
+          if (candidateStart < bEnd && candidateEnd > bStart) {
+            conflict = b;
+            break;
+          }
+        }
+        if (conflict == null) {
+          foundSlot = true;
+        } else {
+          // Push candidateStart to this conflicting block's end time!
+          int bEnd = _timeToMinutes(conflict.endTime);
+          candidateStart = ((bEnd / 5).ceil()) * 5;
+        }
       }
+
+      if (candidateStart >= 24 * 60) {
+        candidateStart = now.hour * 60 + now.minute;
+      }
+      int candidateEnd = candidateStart + candidateDuration;
+      if (candidateEnd > 24 * 60) candidateEnd = 24 * 60;
+
+      defaultStart = TimeOfDay(hour: (candidateStart ~/ 60) % 24, minute: candidateStart % 60);
+      defaultEnd = TimeOfDay(hour: (candidateEnd ~/ 60) % 24, minute: candidateEnd % 60);
     }
 
     TimeOfDay startTime = defaultStart;
@@ -456,7 +482,7 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
+                      color: AppColors.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Row(
@@ -474,6 +500,113 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                       ],
                     ),
                   ),
+
+                  // Real-time live conflict warning inside the modal
+                  Builder(
+                    builder: (ctx) {
+                      final curStart = startTime.hour * 60 + startTime.minute;
+                      final curEnd = endTime.hour * 60 + endTime.minute;
+                      final liveConflict = _findConflictingBlock(curStart, curEnd, excludeId: blockToEdit?.id);
+                      if (liveConflict == null) return const SizedBox.shrink();
+
+                      return Container(
+                        margin: const EdgeInsets.only(top: 12),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: Colors.redAccent.withValues(alpha: 0.6)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 20),
+                                const SizedBox(width: 8),
+                                const Expanded(
+                                  child: Text(
+                                    'Time Slot Conflict!',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                      color: Colors.redAccent,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Overlaps with "${liveConflict.title}" (${liveConflict.startTime} - ${liveConflict.endTime}). You cannot allocate the same time slot.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isDark ? Colors.red[200] : Colors.red[800],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.amber[700],
+                                  foregroundColor: Colors.black,
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                  minimumSize: Size.zero,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                                icon: const Icon(Icons.fast_forward, size: 14),
+                                label: const Text(
+                                  'Allocate Next Free Slot',
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+                                ),
+                                onPressed: () {
+                                  final conflictEnd = _timeToMinutes(liveConflict.endTime);
+                                  final newStartMin = ((conflictEnd / 5).ceil()) * 5;
+                                  int newEndMin = newStartMin + calculatedDuration;
+                                  if (newEndMin > 24 * 60) newEndMin = 24 * 60;
+                                  setSheetState(() {
+                                    startTime = TimeOfDay(hour: (newStartMin ~/ 60) % 24, minute: newStartMin % 60);
+                                    endTime = TimeOfDay(hour: (newEndMin ~/ 60) % 24, minute: newEndMin % 60);
+                                    calculatedDuration = _calculateDuration(startTime, endTime);
+                                  });
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+
+                  // Already Booked Slots Chips
+                  if (_blocks.where((b) => blockToEdit?.id == null || b.id != blockToEdit?.id).isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      'Booked Slots Today:',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textMutedColor(context)),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: _blocks.where((b) => blockToEdit?.id == null || b.id != blockToEdit?.id).map((b) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceVariant(context),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.grey.withValues(alpha: 0.25)),
+                          ),
+                          child: Text(
+                            '🔒 ${b.startTime} - ${b.endTime}: ${b.title}',
+                            style: TextStyle(fontSize: 11, color: AppColors.textSecondaryColor(context)),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+
                   const SizedBox(height: 16),
 
                   // Notes TextField
@@ -491,67 +624,73 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                   ),
                   const SizedBox(height: 22),
 
-                  // Save Button
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                        elevation: 0,
-                      ),
-                      onPressed: () async {
-                        final title = titleController.text.trim();
-                        if (title.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Please enter a task name')),
-                          );
-                          return;
-                        }
+                  // Save Button with real-time conflict handling
+                  Builder(
+                    builder: (ctx) {
+                      final curStart = startTime.hour * 60 + startTime.minute;
+                      final curEnd = endTime.hour * 60 + endTime.minute;
+                      final hasConflict = _findConflictingBlock(curStart, curEnd, excludeId: blockToEdit?.id) != null;
 
-                        // Check past time validation on submit for today
-                        final currentTime = DateTime.now();
-                        final startMinutes = startTime.hour * 60 + startTime.minute;
-                        final currentMinutes = currentTime.hour * 60 + currentTime.minute;
-                        final endMinutes = endTime.hour * 60 + endTime.minute;
+                      return SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: hasConflict ? Colors.grey.shade700 : AppColors.primary,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            elevation: 0,
+                          ),
+                          onPressed: () async {
+                            final title = titleController.text.trim();
+                            if (title.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Please enter a task name')),
+                              );
+                              return;
+                            }
 
-                        if (isToday && startMinutes < currentMinutes) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Start time cannot be in the past. Please select current time or later.'),
-                              backgroundColor: Colors.redAccent,
-                            ),
-                          );
-                          return;
-                        }
+                            // Check past time validation on submit for today
+                            final currentTime = DateTime.now();
+                            final startMinutes = startTime.hour * 60 + startTime.minute;
+                            final currentMinutes = currentTime.hour * 60 + currentTime.minute;
+                            final endMinutes = endTime.hour * 60 + endTime.minute;
 
-                        if (endMinutes <= startMinutes) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('End time must be after start time.'),
-                              backgroundColor: Colors.redAccent,
-                            ),
-                          );
-                          return;
-                        }
+                            if (isToday && startMinutes < currentMinutes) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Start time cannot be in the past. Please select current time or later.'),
+                                  backgroundColor: Colors.redAccent,
+                                ),
+                              );
+                              return;
+                            }
 
-                        // Check time slot conflict: cannot schedule two tasks in the same time slot
-                        final conflict = _findConflictingBlock(startMinutes, endMinutes, excludeId: blockToEdit?.id);
-                        if (conflict != null) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                '⚠️ Time slot already occupied!\n"${conflict.title}" is already scheduled (${conflict.startTime} - ${conflict.endTime}). Please select another time slot.',
-                                style: const TextStyle(fontWeight: FontWeight.w600),
-                              ),
-                              backgroundColor: Colors.red.shade700,
-                              duration: const Duration(seconds: 4),
-                            ),
-                          );
-                          return;
-                        }
+                            if (endMinutes <= startMinutes) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('End time must be after start time.'),
+                                  backgroundColor: Colors.redAccent,
+                                ),
+                              );
+                              return;
+                            }
+
+                            // Strictly check time slot conflict from memory and database
+                            final conflict = _findConflictingBlock(startMinutes, endMinutes, excludeId: blockToEdit?.id);
+                            if (conflict != null) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    '⚠️ Time slot already occupied!\n"${conflict.title}" is already scheduled (${conflict.startTime} - ${conflict.endTime}). Please allocate another time slot.',
+                                    style: const TextStyle(fontWeight: FontWeight.w600),
+                                  ),
+                                  backgroundColor: Colors.red.shade700,
+                                  duration: const Duration(seconds: 4),
+                                ),
+                              );
+                              return;
+                            }
 
                         final block = TimeBlock(
                           id: blockToEdit?.id,
@@ -581,8 +720,10 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                       ),
                     ),
-                  ),
-                ],
+                  );
+                },
+              ),
+            ],
               ),
             ),
           );
@@ -591,21 +732,25 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
     );
   }
 
-  TimeOfDay _parseTimeOfDay(String timeStr) {
+  int _timeToMinutes(String timeStr) {
     try {
-      final parts = timeStr.split(' ');
-      final hm = parts[0].split(':');
-      int h = int.parse(hm[0]);
-      int m = int.parse(hm[1]);
-      if (parts.length > 1) {
-        final period = parts[1].toUpperCase();
+      final clean = timeStr.replaceAll(RegExp(r'\s+'), ' ').trim();
+      final match = RegExp(r'^(\d{1,2}):(\d{2})(?:\s*([APap][Mm]))?').firstMatch(clean);
+      if (match != null) {
+        int h = int.parse(match.group(1)!);
+        int m = int.parse(match.group(2)!);
+        final period = match.group(3)?.toUpperCase();
         if (period == 'PM' && h < 12) h += 12;
         if (period == 'AM' && h == 12) h = 0;
+        return h * 60 + m;
       }
-      return TimeOfDay(hour: h, minute: m);
-    } catch (_) {
-      return const TimeOfDay(hour: 9, minute: 0);
-    }
+    } catch (_) {}
+    return 0;
+  }
+
+  TimeOfDay _parseTimeOfDay(String timeStr) {
+    final totalMin = _timeToMinutes(timeStr);
+    return TimeOfDay(hour: (totalMin ~/ 60) % 24, minute: totalMin % 60);
   }
 
   String _formatTimeOfDay(TimeOfDay tod) {
@@ -627,10 +772,8 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
   TimeBlock? _findConflictingBlock(int startMin, int endMin, {int? excludeId}) {
     for (final b in _blocks) {
       if (excludeId != null && b.id == excludeId) continue;
-      final bStartTod = _parseTimeOfDay(b.startTime);
-      final bEndTod = _parseTimeOfDay(b.endTime);
-      int bStart = bStartTod.hour * 60 + bStartTod.minute;
-      int bEnd = bEndTod.hour * 60 + bEndTod.minute;
+      int bStart = _timeToMinutes(b.startTime);
+      int bEnd = _timeToMinutes(b.endTime);
       if (bEnd <= bStart) bEnd += 24 * 60;
 
       int testStart = startMin;
