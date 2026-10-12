@@ -11,8 +11,10 @@ import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.os.Build
+import android.os.Bundle
 import android.os.Process
 import android.provider.Settings
+import androidx.core.app.NotificationManagerCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -20,6 +22,12 @@ import java.io.ByteArrayOutputStream
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.focusflow.app/usage"
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        TaskNotificationManager.initChannel(this)
+        requestNotificationPermission()
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -102,9 +110,46 @@ class MainActivity : FlutterActivity() {
                     TaskNotificationManager.showNotification(this, id, title, body, subText)
                     result.success(true)
                 }
+                "hasNotificationPermission" -> {
+                    result.success(hasNotificationPermission())
+                }
+                "requestNotificationPermission" -> {
+                    requestNotificationPermission()
+                    result.success(true)
+                }
+                "scheduleAlarm" -> {
+                    val id = call.argument<Int>("id") ?: 100
+                    val timeMillis = (call.argument<Number>("timeMillis"))?.toLong() ?: 0L
+                    val title = call.argument<String>("title") ?: "FocusFlow"
+                    val body = call.argument<String>("body") ?: ""
+                    val subText = call.argument<String>("subText") ?: "Schedule"
+                    TaskNotificationManager.scheduleAlarm(this, id, timeMillis, title, body, subText)
+                    result.success(true)
+                }
+                "cancelAlarm" -> {
+                    val id = call.argument<Int>("id") ?: 100
+                    TaskNotificationManager.cancelAlarm(this, id)
+                    result.success(true)
+                }
                 else -> {
                     result.notImplemented()
                 }
+            }
+        }
+    }
+
+    private fun hasNotificationPermission(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        } else {
+            NotificationManagerCompat.from(this).areNotificationsEnabled()
+        }
+    }
+
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1002)
             }
         }
     }

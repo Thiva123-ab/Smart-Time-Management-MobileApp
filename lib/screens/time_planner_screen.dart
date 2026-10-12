@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
 import '../data/local/database_helper.dart';
 import '../data/models/time_block.dart';
+import '../services/usage_tracking_service.dart';
+import '../services/schedule_notification_service.dart';
 import 'focus_screen.dart';
 
 class TimePlannerScreen extends StatefulWidget {
@@ -17,6 +19,7 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
   DateTime _selectedDate = DateTime.now();
   List<TimeBlock> _blocks = [];
   bool _isLoading = true;
+  bool _hasNotificationPermission = true;
 
   // Transport live tracker state
   bool _isTrackingTransport = false;
@@ -40,7 +43,15 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
   @override
   void initState() {
     super.initState();
+    _checkNotificationPermission();
     _loadBlocks();
+  }
+
+  Future<void> _checkNotificationPermission() async {
+    final hasPerm = await UsageTrackingService.hasNotificationPermission();
+    if (mounted) {
+      setState(() => _hasNotificationPermission = hasPerm);
+    }
   }
 
   @override

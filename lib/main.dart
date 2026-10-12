@@ -5,10 +5,13 @@ import 'theme/theme_provider.dart';
 import 'screens/main_navigation_screen.dart';
 
 import 'services/schedule_notification_service.dart';
+import 'services/usage_tracking_service.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   ScheduleNotificationService.instance.start();
+  // Request Android runtime notification permission on startup
+  UsageTrackingService.requestNotificationPermission();
   runApp(
     ChangeNotifierProvider(
       create: (_) => ThemeProvider(),

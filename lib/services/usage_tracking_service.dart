@@ -71,6 +71,45 @@ class UsageTrackingService {
     } catch (_) {}
   }
 
+  static Future<bool> hasNotificationPermission() async {
+    try {
+      final bool? result = await _channel.invokeMethod('hasNotificationPermission');
+      return result ?? true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  static Future<void> requestNotificationPermission() async {
+    try {
+      await _channel.invokeMethod('requestNotificationPermission');
+    } catch (_) {}
+  }
+
+  static Future<void> scheduleAlarm({
+    required int id,
+    required int timeMillis,
+    required String title,
+    required String body,
+    String subText = 'Schedule Reminder',
+  }) async {
+    try {
+      await _channel.invokeMethod('scheduleAlarm', {
+        'id': id,
+        'timeMillis': timeMillis,
+        'title': title,
+        'body': body,
+        'subText': subText,
+      });
+    } catch (_) {}
+  }
+
+  static Future<void> cancelAlarm(int id) async {
+    try {
+      await _channel.invokeMethod('cancelAlarm', {'id': id});
+    } catch (_) {}
+  }
+
   static Future<Uint8List?> fetchAppIcon(String packageName) async {
     if (_iconCache.containsKey(packageName)) {
       return _iconCache[packageName];

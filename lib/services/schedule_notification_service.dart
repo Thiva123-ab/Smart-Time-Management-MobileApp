@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:intl/intl.dart';
 import '../data/local/database_helper.dart';
+import '../data/models/time_block.dart';
 import 'usage_tracking_service.dart';
 
 class ScheduleNotificationService {
@@ -13,9 +14,11 @@ class ScheduleNotificationService {
 
   void start() {
     _checkerTimer?.cancel();
-    // Run an initial check immediately
+    // Run an initial check immediately and sync native alarms
     _checkScheduleAndNotify();
-    // Run periodically every 20 seconds to be precise
+    rescheduleNativeAlarms();
+
+    // Run periodically every 20 seconds for in-app real-time precision
     _checkerTimer = Timer.periodic(const Duration(seconds: 20), (_) {
       _checkScheduleAndNotify();
     });
@@ -26,16 +29,15 @@ class ScheduleNotificationService {
     _checkerTimer = null;
   }
 
-  Future<void> _checkScheduleAndNotify() async {
+  /// Re-syncs native AlarmManager exact alarms for all active tasks of today.
+  /// This ensures notifications fire reliably even if the app is closed or phone is locked.
+  Future<void> rescheduleNativeAlarms() async {
     final now = DateTime.now();
     final todayStr = DateFormat('yyyy-MM-dd').format(now);
-    final currentMinutes = now.hour * 60 + now.minute;
 
-    // Fetch today's scheduled time blocks
     final blocks = await DatabaseHelper.instance.getTimeBlocksForDate(todayStr);
     if (blocks.isEmpty) return;
 
-    // Filter incomplete tasks and sort by start time
     final activeBlocks = blocks.where((b) => !b.isCompleted).toList();
     activeBlocks.sort((a, b) {
       final aMin = _parseTimeToMinutes(a.startTime);
@@ -45,57 +47,68 @@ class ScheduleNotificationService {
 
     for (int i = 0; i < activeBlocks.length; i++) {
       final block = activeBlocks[i];
+      final blockId = block.id ?? (i + 1);
       final startMin = _parseTimeToMinutes(block.startTime);
       final endMin = _parseTimeToMinutes(block.endTime);
+      final duration = endMin > startMin ? (endMin - startMin) : block.durationMinutes;
 
-      // 1. Task start notification (at task start time)
-      if (currentMinutes == startMin) {
-        final key = '${block.id}_start_${now.day}_$startMin';
-        if (!_notifiedKeys.contains(key)) {
-          _notifiedKeys.add(key);
-          await UsageTrackingService.showNotification(
-            id: (block.id ?? 1) * 10,
-            title: '⏰ Task Started: ${block.title}',
-            body: '${block.category} session from ${block.startTime} to ${block.endTime}. Stay focused!',
-            subText: 'Scheduled Task',
+      // 1. Alarm: 5 minutes BEFORE task starts
+      final preStartMin = startMin - 5;
+      if (preStartMin >= 0) {
+        final preStartTime = DateTime(now.year, now.month, now.day, preStartMin ~/ 60, preStartMin % 60);
+        if (preStartTime.isAfter(now)) {
+          await UsageTrackingService.scheduleAlarm(
+            id: blockId * 100 + 1,
+            timeMillis: preStartTime.millisecondsSinceEpoch,
+            title: '🔔 Upcoming Task: "${block.title}"',
+            body: 'Starts in 5 minutes (at ${block.startTime}). Get ready to focus!',
+            subText: 'Starting in 5 mins',
           );
         }
       }
 
-      // 2. Periodic every 30-minute interval notifications while the task is ongoing
-      if (currentMinutes > startMin && currentMinutes < endMin) {
-        final elapsed = currentMinutes - startMin;
-        if (elapsed > 0 && elapsed % 30 == 0) {
-          final key = '${block.id}_interval_${now.day}_$elapsed';
-          if (!_notifiedKeys.contains(key)) {
-            _notifiedKeys.add(key);
-            final remainingMin = endMin - currentMinutes;
-            await UsageTrackingService.showNotification(
-              id: (block.id ?? 1) * 10 + (elapsed ~/ 30),
-              title: '⏱️ In Progress (${elapsed}m): ${block.title}',
-              body: 'You have been working for $elapsed mins. $remainingMin mins remaining until completion.',
-              subText: '30-Minute Checkpoint',
-            );
-          }
+      // 2. Alarm: At task start time
+      final startTime = DateTime(now.year, now.month, now.day, startMin ~/ 60, startMin % 60);
+      if (startTime.isAfter(now)) {
+        await UsageTrackingService.scheduleAlarm(
+          id: blockId * 100 + 2,
+          timeMillis: startTime.millisecondsSinceEpoch,
+          title: '⏰ Task Started: "${block.title}"',
+          body: '${block.category} session from ${block.startTime} to ${block.endTime}. Stay focused!',
+          subText: 'Task Started',
+        );
+      }
+
+      // 3. Alarms: Every 30 minutes while task is in progress
+      for (int elapsed = 30; elapsed < duration; elapsed += 30) {
+        final checkMin = startMin + elapsed;
+        final checkTime = DateTime(now.year, now.month, now.day, checkMin ~/ 60, checkMin % 60);
+        if (checkTime.isAfter(now)) {
+          final remaining = endMin - checkMin;
+          final remainingStr = _formatRemaining(remaining);
+          await UsageTrackingService.scheduleAlarm(
+            id: blockId * 100 + 10 + (elapsed ~/ 30),
+            timeMillis: checkTime.millisecondsSinceEpoch,
+            title: '⏱️ In Progress (${elapsed}m): "${block.title}"',
+            body: 'You have spent $elapsed mins on this task. Remaining time: $remainingStr (ends at ${block.endTime}).',
+            subText: '30-Min Checkpoint',
+          );
         }
       }
 
-      // 3. 5-minute pre-end notification with next upcoming task preview
-      final fiveMinBefore = endMin - 5;
-      if (currentMinutes == fiveMinBefore && fiveMinBefore > startMin) {
-        final key = '${block.id}_ending_soon_${now.day}_$fiveMinBefore';
-        if (!_notifiedKeys.contains(key)) {
-          _notifiedKeys.add(key);
-
-          // Find the next task in schedule
+      // 4. Alarm: 5 minutes BEFORE task ends
+      final preEndMin = endMin - 5;
+      if (preEndMin > startMin) {
+        final preEndTime = DateTime(now.year, now.month, now.day, preEndMin ~/ 60, preEndMin % 60);
+        if (preEndTime.isAfter(now)) {
           String nextTaskInfo = 'No more tasks scheduled for today. Great job!';
           if (i + 1 < activeBlocks.length) {
             final nextBlock = activeBlocks[i + 1];
             nextTaskInfo = 'Next Up: "${nextBlock.title}" at ${nextBlock.startTime} (${nextBlock.category})';
           }
-
-          await UsageTrackingService.showNotification(
-            id: (block.id ?? 1) * 10 + 99,
+          await UsageTrackingService.scheduleAlarm(
+            id: blockId * 100 + 99,
+            timeMillis: preEndTime.millisecondsSinceEpoch,
             title: '⚠️ 5 Mins Remaining: "${block.title}"',
             body: 'Task ends at ${block.endTime}!\n$nextTaskInfo',
             subText: 'Almost Finished',
@@ -103,6 +116,108 @@ class ScheduleNotificationService {
         }
       }
     }
+  }
+
+  Future<void> _checkScheduleAndNotify() async {
+    final now = DateTime.now();
+    final todayStr = DateFormat('yyyy-MM-dd').format(now);
+    final currentMinutes = now.hour * 60 + now.minute;
+
+    final blocks = await DatabaseHelper.instance.getTimeBlocksForDate(todayStr);
+    if (blocks.isEmpty) return;
+
+    final activeBlocks = blocks.where((b) => !b.isCompleted).toList();
+    activeBlocks.sort((a, b) {
+      final aMin = _parseTimeToMinutes(a.startTime);
+      final bMin = _parseTimeToMinutes(b.startTime);
+      return aMin.compareTo(bMin);
+    });
+
+    for (int i = 0; i < activeBlocks.length; i++) {
+      final block = activeBlocks[i];
+      final blockId = block.id ?? (i + 1);
+      final startMin = _parseTimeToMinutes(block.startTime);
+      final endMin = _parseTimeToMinutes(block.endTime);
+
+      // 1. Notification: 5 minutes BEFORE task starts
+      final preStartMin = startMin - 5;
+      if (currentMinutes == preStartMin && preStartMin >= 0) {
+        final key = '${blockId}_prestart_${now.day}_$preStartMin';
+        if (!_notifiedKeys.contains(key)) {
+          _notifiedKeys.add(key);
+          await UsageTrackingService.showNotification(
+            id: blockId * 100 + 1,
+            title: '🔔 Upcoming Task: "${block.title}"',
+            body: 'Starts in 5 minutes (at ${block.startTime}). Get ready to focus!',
+            subText: 'Starting in 5 mins',
+          );
+        }
+      }
+
+      // 2. Notification: At task start time
+      if (currentMinutes == startMin) {
+        final key = '${blockId}_start_${now.day}_$startMin';
+        if (!_notifiedKeys.contains(key)) {
+          _notifiedKeys.add(key);
+          await UsageTrackingService.showNotification(
+            id: blockId * 100 + 2,
+            title: '⏰ Task Started: "${block.title}"',
+            body: '${block.category} session from ${block.startTime} to ${block.endTime}. Stay focused!',
+            subText: 'Task Started',
+          );
+        }
+      }
+
+      // 3. Notification: Every 30 minutes while task is ongoing (with remaining time)
+      if (currentMinutes > startMin && currentMinutes < endMin) {
+        final elapsed = currentMinutes - startMin;
+        if (elapsed > 0 && elapsed % 30 == 0) {
+          final key = '${blockId}_interval_${now.day}_$elapsed';
+          if (!_notifiedKeys.contains(key)) {
+            _notifiedKeys.add(key);
+            final remainingMin = endMin - currentMinutes;
+            final remainingStr = _formatRemaining(remainingMin);
+            await UsageTrackingService.showNotification(
+              id: blockId * 100 + 10 + (elapsed ~/ 30),
+              title: '⏱️ In Progress (${elapsed}m): "${block.title}"',
+              body: 'You have spent $elapsed mins on this task. Remaining time: $remainingStr (ends at ${block.endTime}).',
+              subText: '30-Min Checkpoint',
+            );
+          }
+        }
+      }
+
+      // 4. Notification: 5 minutes BEFORE task ends (with next task preview)
+      final preEndMin = endMin - 5;
+      if (currentMinutes == preEndMin && preEndMin > startMin) {
+        final key = '${blockId}_ending_soon_${now.day}_$preEndMin';
+        if (!_notifiedKeys.contains(key)) {
+          _notifiedKeys.add(key);
+
+          String nextTaskInfo = 'No more tasks scheduled for today. Great job!';
+          if (i + 1 < activeBlocks.length) {
+            final nextBlock = activeBlocks[i + 1];
+            nextTaskInfo = 'Next Up: "${nextBlock.title}" at ${nextBlock.startTime} (${nextBlock.category})';
+          }
+
+          await UsageTrackingService.showNotification(
+            id: blockId * 100 + 99,
+            title: '⚠️ 5 Mins Remaining: "${block.title}"',
+            body: 'Task ends at ${block.endTime}!\n$nextTaskInfo',
+            subText: 'Almost Finished',
+          );
+        }
+      }
+    }
+  }
+
+  String _formatRemaining(int minutes) {
+    if (minutes <= 0) return '0 mins';
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+    if (h > 0 && m > 0) return '$h hr $m mins';
+    if (h > 0) return '$h hr';
+    return '$m mins';
   }
 
   int _parseTimeToMinutes(String timeStr) {
