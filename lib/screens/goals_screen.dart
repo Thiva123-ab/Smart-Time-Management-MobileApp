@@ -402,18 +402,7 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
                             ),
                             child: InkWell(
                               borderRadius: BorderRadius.circular(16),
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => FocusScreen(
-                                      initialTask: g.title,
-                                      initialDurationMinutes: g.targetMinutes > 0 ? g.targetMinutes : 25,
-                                      autoStartFocus: true,
-                                    ),
-                                  ),
-                                );
-                              },
+                              onTap: () => _toggleGoal(g),
                               child: Padding(
                                 padding: const EdgeInsets.all(14),
                                 child: Column(
@@ -425,7 +414,7 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
                                           icon: Icon(
                                             isDone ? Icons.check_circle : Icons.radio_button_unchecked,
                                             color: isDone ? AppColors.success : AppColors.textSecondaryColor(context),
-                                            size: 24,
+                                            size: 26,
                                           ),
                                           onPressed: () => _toggleGoal(g),
                                         ),
@@ -451,26 +440,41 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
                                             ],
                                           ),
                                         ),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                          decoration: BoxDecoration(
-                                            color: AppColors.primary.withOpacity(0.12),
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              const Icon(Icons.play_arrow_rounded, size: 16, color: AppColors.primary),
-                                              const SizedBox(width: 2),
-                                              Text(
-                                                'Start',
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: isDark ? AppColors.accentCyan : AppColors.primary,
+                                        InkWell(
+                                          borderRadius: BorderRadius.circular(8),
+                                          onTap: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) => FocusScreen(
+                                                  initialTask: g.title,
+                                                  initialDurationMinutes: g.targetMinutes > 0 ? g.targetMinutes : 25,
+                                                  autoStartFocus: true,
                                                 ),
                                               ),
-                                            ],
+                                            );
+                                          },
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.primary.withValues(alpha: 0.12),
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const Icon(Icons.play_arrow_rounded, size: 16, color: AppColors.primary),
+                                                const SizedBox(width: 2),
+                                                Text(
+                                                  'Start',
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: isDark ? AppColors.accentCyan : AppColors.primary,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
                                           ),
                                         ),
                                         IconButton(

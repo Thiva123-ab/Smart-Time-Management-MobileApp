@@ -647,9 +647,26 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
 
   Future<void> _toggleBlockStatus(TimeBlock block) async {
     if (block.id == null) return;
-    await DatabaseHelper.instance.toggleTimeBlock(block.id!, !block.isCompleted);
+    final willComplete = !block.isCompleted;
+    await DatabaseHelper.instance.toggleTimeBlock(block.id!, willComplete);
     ScheduleNotificationService.instance.rescheduleNativeAlarms();
     _loadBlocks();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            willComplete
+                ? '✅ "${block.title}" marked as COMPLETED!'
+                : '↩️ "${block.title}" marked as PENDING.',
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: willComplete ? AppColors.success : Colors.blueGrey,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   Future<void> _deleteBlock(int id) async {
@@ -1362,7 +1379,7 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
-        onTap: () => _startFocusForBlock(block),
+        onTap: () => _toggleBlockStatus(block),
         child: Column(
           children: [
             Padding(
@@ -1370,175 +1387,216 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Custom checkbox
-                  InkWell(
+                  // Prominent, interactive Checkbox with large touch target
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
                     onTap: () => _toggleBlockStatus(block),
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      width: 26,
-                    height: 26,
-                    decoration: BoxDecoration(
-                      color: isDone ? AppColors.success : Colors.transparent,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: isDone ? AppColors.success : Colors.grey,
-                        width: 2,
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 12, top: 2),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: isDone ? AppColors.success : Colors.transparent,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isDone ? AppColors.success : (isDark ? Colors.grey[400]! : Colors.grey[500]!),
+                            width: 2.2,
+                          ),
+                          boxShadow: isDone
+                              ? [
+                                  BoxShadow(
+                                    color: AppColors.success.withValues(alpha: 0.35),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ]
+                              : null,
+                        ),
+                        child: isDone
+                            ? const Icon(Icons.check_rounded, size: 22, color: Colors.white)
+                            : null,
                       ),
                     ),
-                    child: isDone
-                        ? const Icon(Icons.check, size: 18, color: Colors.white)
-                        : null,
                   ),
-                ),
-                const SizedBox(width: 12),
 
-                // Content
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Time badge and Category
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: catColor.withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(_getCategoryIcon(block.category), size: 12, color: catColor),
-                                const SizedBox(width: 4),
-                                Text(
-                                  block.category,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    color: catColor,
+                  // Content
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Time badge and Category
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: catColor.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(_getCategoryIcon(block.category), size: 12, color: catColor),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    block.category,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: catColor,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
+                            const SizedBox(width: 8),
+                            Icon(Icons.access_time, size: 13, color: AppColors.textMutedColor(context)),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${block.startTime} - ${block.endTime}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textSecondaryColor(context),
+                              ),
+                            ),
+                            const Spacer(),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.surfaceVariant(context),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                _formatMinutes(block.durationMinutes),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textPrimaryColor(context),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+
+                        // Title
+                        Text(
+                          block.title,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: isDone
+                                ? AppColors.textMutedColor(context)
+                                : AppColors.textPrimaryColor(context),
+                            decoration: isDone ? TextDecoration.lineThrough : null,
                           ),
-                          const SizedBox(width: 8),
-                          Icon(Icons.access_time, size: 13, color: AppColors.textMutedColor(context)),
-                          const SizedBox(width: 4),
+                        ),
+
+                        if (block.notes != null && block.notes!.isNotEmpty) ...[
+                          const SizedBox(height: 4),
                           Text(
-                            '${block.startTime} - ${block.endTime}',
+                            block.notes!,
                             style: TextStyle(
                               fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textSecondaryColor(context),
+                              color: AppColors.textMutedColor(context),
                             ),
                           ),
-                          const Spacer(),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceVariant(context),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              _formatMinutes(block.durationMinutes),
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.textPrimaryColor(context),
-                              ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Action row
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceVariant(context).withValues(alpha: 0.5),
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(18)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Dedicated Tick / Mark Complete Button
+                  InkWell(
+                    onTap: () => _toggleBlockStatus(block),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                      child: Row(
+                        children: [
+                          Icon(
+                            isDone ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                            size: 18,
+                            color: isDone ? AppColors.success : (isDark ? Colors.grey[400] : Colors.grey[600]),
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            isDone ? 'Completed ✓' : 'Mark Done',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: isDone ? AppColors.success : AppColors.textPrimaryColor(context),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
+                    ),
+                  ),
 
-                      // Title
-                      Text(
-                        block.title,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: isDone
-                              ? AppColors.textMutedColor(context)
-                              : AppColors.textPrimaryColor(context),
-                          decoration: isDone ? TextDecoration.lineThrough : null,
-                        ),
-                      ),
-
-                      if (block.notes != null && block.notes!.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          block.notes!,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textMutedColor(context),
+                  // Quick Start Focus Session button
+                  InkWell(
+                    onTap: () => _startFocusForBlock(block),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.play_circle_fill, size: 18, color: AppColors.primary),
+                          const SizedBox(width: 5),
+                          Text(
+                            'Focus Timer',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? AppColors.accentCyan : AppColors.primary,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit_outlined, size: 18),
+                        color: AppColors.textSecondaryColor(context),
+                        tooltip: 'Edit',
+                        onPressed: () => _showAddOrEditDialog(blockToEdit: block),
+                        constraints: const BoxConstraints(),
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, size: 18),
+                        color: AppColors.danger,
+                        tooltip: 'Delete',
+                        onPressed: () => _deleteBlock(block.id!),
+                        constraints: const BoxConstraints(),
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                      ),
                     ],
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-
-          // Action row
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceVariant(context).withOpacity(0.5),
-              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(18)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                // Quick Start Focus Session button
-                InkWell(
-                  onTap: () => _startFocusForBlock(block),
-                  borderRadius: BorderRadius.circular(8),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.play_circle_fill, size: 18, color: AppColors.primary),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Start Focus Timer',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: isDark ? AppColors.accentCyan : AppColors.primary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.edit_outlined, size: 18),
-                      color: AppColors.textSecondaryColor(context),
-                      tooltip: 'Edit',
-                      onPressed: () => _showAddOrEditDialog(blockToEdit: block),
-                      constraints: const BoxConstraints(),
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline, size: 18),
-                      color: AppColors.danger,
-                      tooltip: 'Delete',
-                      onPressed: () => _deleteBlock(block.id!),
-                      constraints: const BoxConstraints(),
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     ),
   );
