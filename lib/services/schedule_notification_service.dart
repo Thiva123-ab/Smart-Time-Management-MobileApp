@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:intl/intl.dart';
 import '../data/local/database_helper.dart';
-import '../data/models/time_block.dart';
 import 'usage_tracking_service.dart';
 
 class ScheduleNotificationService {

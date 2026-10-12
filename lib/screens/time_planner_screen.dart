@@ -515,11 +515,39 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                         final currentTime = DateTime.now();
                         final startMinutes = startTime.hour * 60 + startTime.minute;
                         final currentMinutes = currentTime.hour * 60 + currentTime.minute;
+                        final endMinutes = endTime.hour * 60 + endTime.minute;
+
                         if (isToday && startMinutes < currentMinutes) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text('Start time cannot be in the past. Please select current time or later.'),
                               backgroundColor: Colors.redAccent,
+                            ),
+                          );
+                          return;
+                        }
+
+                        if (endMinutes <= startMinutes) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('End time must be after start time.'),
+                              backgroundColor: Colors.redAccent,
+                            ),
+                          );
+                          return;
+                        }
+
+                        // Check time slot conflict: cannot schedule two tasks in the same time slot
+                        final conflict = _findConflictingBlock(startMinutes, endMinutes, excludeId: blockToEdit?.id);
+                        if (conflict != null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                '⚠️ Time slot already occupied!\n"${conflict.title}" is already scheduled (${conflict.startTime} - ${conflict.endTime}). Please select another time slot.',
+                                style: const TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                              backgroundColor: Colors.red.shade700,
+                              duration: const Duration(seconds: 4),
                             ),
                           );
                           return;
@@ -542,6 +570,8 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                         } else {
                           await DatabaseHelper.instance.updateTimeBlock(block);
                         }
+
+                        ScheduleNotificationService.instance.rescheduleNativeAlarms();
 
                         Navigator.pop(ctx);
                         _loadBlocks();
@@ -594,14 +624,37 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
     return diff > 0 ? diff : 30;
   }
 
+  TimeBlock? _findConflictingBlock(int startMin, int endMin, {int? excludeId}) {
+    for (final b in _blocks) {
+      if (excludeId != null && b.id == excludeId) continue;
+      final bStartTod = _parseTimeOfDay(b.startTime);
+      final bEndTod = _parseTimeOfDay(b.endTime);
+      int bStart = bStartTod.hour * 60 + bStartTod.minute;
+      int bEnd = bEndTod.hour * 60 + bEndTod.minute;
+      if (bEnd <= bStart) bEnd += 24 * 60;
+
+      int testStart = startMin;
+      int testEnd = endMin;
+      if (testEnd <= testStart) testEnd += 24 * 60;
+
+      // Overlap: [testStart, testEnd) and [bStart, bEnd) overlap if testStart < bEnd && testEnd > bStart
+      if (testStart < bEnd && testEnd > bStart) {
+        return b;
+      }
+    }
+    return null;
+  }
+
   Future<void> _toggleBlockStatus(TimeBlock block) async {
     if (block.id == null) return;
     await DatabaseHelper.instance.toggleTimeBlock(block.id!, !block.isCompleted);
+    ScheduleNotificationService.instance.rescheduleNativeAlarms();
     _loadBlocks();
   }
 
   Future<void> _deleteBlock(int id) async {
     await DatabaseHelper.instance.deleteTimeBlock(id);
+    ScheduleNotificationService.instance.rescheduleNativeAlarms();
     _loadBlocks();
   }
 
@@ -732,6 +785,24 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
       }
     }
 
+    final testStartMin = finalStartHour * 60 + finalStartMin;
+    int testEndMin = finalEndHour * 60 + finalEndMin;
+    if (testEndMin <= testStartMin) testEndMin += 24 * 60;
+    final conflict = _findConflictingBlock(testStartMin, testEndMin);
+    if (conflict != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '⚠️ Time slot conflict!\nCannot add "$title". "${conflict.title}" is already scheduled (${conflict.startTime} - ${conflict.endTime}).',
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: Colors.red.shade700,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
+
     final block = TimeBlock(
       title: title,
       category: category,
@@ -744,6 +815,7 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
       ),
     );
     await DatabaseHelper.instance.insertTimeBlock(block);
+    ScheduleNotificationService.instance.rescheduleNativeAlarms();
     _loadBlocks();
   }
 
@@ -834,6 +906,11 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                       child: ListView(
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                         children: [
+                          if (!_hasNotificationPermission) ...[
+                            _buildNotificationPermissionBanner(isDark),
+                            const SizedBox(height: 16),
+                          ],
+
                           // Daily Summary Card
                           _buildSummaryCard(totalMinutes, completedBlocks, progress, isDark),
                           const SizedBox(height: 18),
@@ -959,6 +1036,61 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildNotificationPermissionBanner(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.amber.shade900.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.amber.shade700.withOpacity(0.4)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.notifications_active_outlined, color: Colors.amber, size: 28),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Notifications Not Enabled',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color: isDark ? Colors.amber[200] : Colors.amber[900],
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Turn on notifications to receive 5-min task warnings & 30-min checkpoints.',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondaryColor(context),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.amber.shade700,
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              minimumSize: Size.zero,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () async {
+              await UsageTrackingService.requestNotificationPermission();
+              await Future.delayed(const Duration(milliseconds: 600));
+              _checkNotificationPermission();
+            },
+            child: const Text('Enable', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+          ),
+        ],
       ),
     );
   }
