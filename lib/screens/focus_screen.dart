@@ -9,12 +9,16 @@ import '../services/usage_tracking_service.dart';
 class FocusScreen extends StatefulWidget {
   final String? initialTask;
   final int? initialDurationMinutes;
+  final int? initialElapsedSeconds;
+  final int? goalId;
   final bool autoStartFocus;
 
   const FocusScreen({
     super.key,
     this.initialTask,
     this.initialDurationMinutes,
+    this.initialElapsedSeconds,
+    this.goalId,
     this.autoStartFocus = false,
   });
 
@@ -53,10 +57,13 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
     if (widget.initialDurationMinutes != null && widget.initialDurationMinutes! > 0) {
       _selectedDurationMinutes = widget.initialDurationMinutes!;
     }
+    if (widget.initialElapsedSeconds != null && widget.initialElapsedSeconds! > 0) {
+      _focusElapsedSeconds = widget.initialElapsedSeconds!;
+    }
     if (widget.autoStartFocus) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          _startFocusSession();
+          _startFocusSession(resume: _focusElapsedSeconds > 0);
         }
       });
     }
@@ -71,14 +78,27 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
     super.dispose();
   }
 
+  Future<void> _saveGoalProgress({bool markCompleted = false}) async {
+    if (widget.goalId != null && _focusElapsedSeconds > 0) {
+      final completedMinutes = (_focusElapsedSeconds ~/ 60);
+      final isDone = markCompleted || (completedMinutes >= _selectedDurationMinutes && _selectedDurationMinutes > 0);
+      await DatabaseHelper.instance.updateGoalProgress(
+        widget.goalId!,
+        completedMinutes,
+        markCompleted: isDone,
+      );
+    }
+  }
+
   // Focus Session Handlers
-  void _startFocusSession() {
+  void _startFocusSession({bool resume = false}) {
     final task = _taskController.text.trim().isEmpty ? 'Deep Work' : _taskController.text.trim();
-    _focusManager.start(task, _selectedDurationMinutes);
+    final startSeconds = (resume || _focusElapsedSeconds > 0) ? _focusElapsedSeconds : 0;
+    _focusManager.start(task, _selectedDurationMinutes, initialElapsedSeconds: startSeconds);
     setState(() {
       _isFocusActive = true;
       _isFocusPaused = false;
-      _focusElapsedSeconds = 0;
+      _focusElapsedSeconds = startSeconds;
       _focusDistractions = 0;
     });
 
@@ -89,6 +109,10 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
           _focusElapsedSeconds++;
         });
 
+        if (_focusElapsedSeconds % 30 == 0) {
+          _saveGoalProgress();
+        }
+
         if (_focusElapsedSeconds >= _selectedDurationMinutes * 60) {
           _finishFocusSession(true);
         }
@@ -96,8 +120,43 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
     });
   }
 
-  void _pauseFocusSession() {
+  Future<void> _pauseFocusSession() async {
     setState(() => _isFocusPaused = !_isFocusPaused);
+    if (_isFocusPaused) {
+      await _saveGoalProgress();
+      if (mounted) {
+        final completedMins = _focusElapsedSeconds ~/ 60;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Session paused & progress saved ($completedMins mins completed) 💾'),
+            duration: const Duration(seconds: 2),
+            backgroundColor: AppColors.surfaceVariant(context),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _resetFocusSession() async {
+    _focusTimer?.cancel();
+    setState(() {
+      _isFocusActive = false;
+      _isFocusPaused = false;
+      _focusElapsedSeconds = 0;
+      _focusDistractions = 0;
+    });
+    if (widget.goalId != null) {
+      await DatabaseHelper.instance.updateGoalProgress(widget.goalId!, 0, markCompleted: false);
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Timer reset to 0:00 ⏱️'),
+          duration: const Duration(seconds: 2),
+          backgroundColor: AppColors.surfaceVariant(context),
+        ),
+      );
+    }
   }
 
   void _logDistraction() {
@@ -127,6 +186,7 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
     );
 
     await DatabaseHelper.instance.insertFocusSession(session);
+    await _saveGoalProgress(markCompleted: completed);
 
     setState(() {
       _isFocusActive = false;

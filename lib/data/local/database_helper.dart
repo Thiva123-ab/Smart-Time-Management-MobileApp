@@ -229,6 +229,26 @@ class DatabaseHelper {
     return await db.delete('goals', where: 'id = ?', whereArgs: [id]);
   }
 
+  Future<Goal?> getGoalById(int id) async {
+    final db = await instance.database;
+    final result = await db.query('goals', where: 'id = ?', whereArgs: [id]);
+    if (result.isNotEmpty) {
+      return Goal.fromMap(result.first);
+    }
+    return null;
+  }
+
+  Future<int> updateGoalProgress(int id, int completedMinutes, {bool? markCompleted}) async {
+    final db = await instance.database;
+    final values = <String, dynamic>{
+      'completedMinutes': completedMinutes,
+    };
+    if (markCompleted != null) {
+      values['status'] = markCompleted ? 'COMPLETED' : 'IN_PROGRESS';
+    }
+    return await db.update('goals', values, where: 'id = ?', whereArgs: [id]);
+  }
+
   // Focus & Pomodoro
   Future<int> insertFocusSession(FocusSession session) async {
     final db = await instance.database;

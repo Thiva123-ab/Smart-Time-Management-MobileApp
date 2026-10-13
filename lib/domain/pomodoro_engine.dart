@@ -67,12 +67,12 @@ class FocusSessionManager {
   int elapsedSeconds = 0;
   int distractionCount = 0;
 
-  void start(String task, int minutes) {
+  void start(String task, int minutes, {int initialElapsedSeconds = 0}) {
     isActive = true;
     isPaused = false;
     taskName = task;
     plannedMinutes = minutes;
-    elapsedSeconds = 0;
+    elapsedSeconds = initialElapsedSeconds;
     distractionCount = 0;
   }
 
