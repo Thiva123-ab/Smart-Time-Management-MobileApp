@@ -433,54 +433,111 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
                                               ),
                                               const SizedBox(height: 2),
                                               Text(
-                                                '${g.category} • Target: ${_formatTime(g.targetMinutes)}',
-                                                style: TextStyle(fontSize: 11, color: AppColors.textMutedColor(context)),
+                                                '${g.category} • ${g.completedMinutes}m / ${_formatTime(g.targetMinutes)} (${((g.completedMinutes / (g.targetMinutes > 0 ? g.targetMinutes : 1)) * 100).toInt().clamp(0, 100)}%)',
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  fontWeight: g.completedMinutes > 0 ? FontWeight.w600 : FontWeight.normal,
+                                                  color: g.completedMinutes > 0 ? (isDark ? AppColors.accentCyan : AppColors.primary) : AppColors.textMutedColor(context),
+                                                ),
                                               ),
                                             ],
                                           ),
                                         ),
                                         InkWell(
                                           borderRadius: BorderRadius.circular(8),
-                                          onTap: () {
-                                            Navigator.push(
+                                          onTap: () async {
+                                            await Navigator.push(
                                               context,
                                               MaterialPageRoute(
                                                 builder: (_) => FocusScreen(
+                                                  goalId: g.id,
                                                   initialTask: g.title,
                                                   initialDurationMinutes: g.targetMinutes > 0 ? g.targetMinutes : 25,
+                                                  initialElapsedSeconds: g.completedMinutes * 60,
                                                   autoStartFocus: true,
                                                 ),
                                               ),
                                             );
+                                            _loadData();
                                           },
                                           child: Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                                             decoration: BoxDecoration(
-                                              color: AppColors.primary.withValues(alpha: 0.12),
+                                              color: (g.completedMinutes > 0 && !isDone)
+                                                  ? AppColors.warning.withValues(alpha: 0.15)
+                                                  : AppColors.primary.withValues(alpha: 0.12),
                                               borderRadius: BorderRadius.circular(8),
+                                              border: Border.all(
+                                                color: (g.completedMinutes > 0 && !isDone)
+                                                    ? AppColors.warning.withValues(alpha: 0.5)
+                                                    : Colors.transparent,
+                                              ),
                                             ),
                                             child: Row(
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
-                                                const Icon(Icons.play_arrow_rounded, size: 16, color: AppColors.primary),
-                                                const SizedBox(width: 2),
+                                                Icon(
+                                                  (g.completedMinutes > 0 && !isDone)
+                                                      ? Icons.play_arrow_rounded
+                                                      : Icons.play_arrow_outlined,
+                                                  size: 16,
+                                                  color: (g.completedMinutes > 0 && !isDone)
+                                                      ? AppColors.warning
+                                                      : (isDark ? AppColors.accentCyan : AppColors.primary),
+                                                ),
+                                                const SizedBox(width: 3),
                                                 Text(
-                                                  'Start',
+                                                  isDone
+                                                      ? 'Done'
+                                                      : (g.completedMinutes > 0 ? 'Resume' : 'Start'),
                                                   style: TextStyle(
                                                     fontSize: 11,
                                                     fontWeight: FontWeight.bold,
-                                                    color: isDark ? AppColors.accentCyan : AppColors.primary,
+                                                    color: (g.completedMinutes > 0 && !isDone)
+                                                        ? AppColors.warning
+                                                        : (isDark ? AppColors.accentCyan : AppColors.primary),
                                                   ),
                                                 ),
                                               ],
                                             ),
                                           ),
                                         ),
-                                        IconButton(
-                                          icon: Icon(Icons.delete_outline, size: 20, color: AppColors.textMutedColor(context)),
-                                          onPressed: () {
-                                            if (g.id != null) _deleteGoal(g.id!);
+                                        PopupMenuButton<String>(
+                                          icon: Icon(Icons.more_vert, size: 20, color: AppColors.textMutedColor(context)),
+                                          color: AppColors.surface(context),
+                                          onSelected: (val) async {
+                                            if (val == 'reset') {
+                                              if (g.id != null) {
+                                                await DatabaseHelper.instance.updateGoalProgress(g.id!, 0, markCompleted: false);
+                                                _loadData();
+                                              }
+                                            } else if (val == 'delete') {
+                                              if (g.id != null) _deleteGoal(g.id!);
+                                            }
                                           },
+                                          itemBuilder: (ctx) => [
+                                            if (g.completedMinutes > 0)
+                                              const PopupMenuItem(
+                                                value: 'reset',
+                                                child: Row(
+                                                  children: [
+                                                    Icon(Icons.restart_alt, size: 18, color: Colors.orangeAccent),
+                                                    SizedBox(width: 8),
+                                                    Text('Reset Progress'),
+                                                  ],
+                                                ),
+                                              ),
+                                            const PopupMenuItem(
+                                              value: 'delete',
+                                              child: Row(
+                                                children: [
+                                                  Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
+                                                  SizedBox(width: 8),
+                                                  Text('Delete Goal'),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ],
                                     ),
