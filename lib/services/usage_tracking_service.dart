@@ -172,6 +172,10 @@ class UsageTrackingService {
           }).toList();
 
           return list;
+        } else if (isToday) {
+          // Permitted and it is today, but rawStats is empty (e.g. just after 12:00 midnight)
+          // Return empty list so today starts fresh from 0!
+          return [];
         }
       } catch (_) {}
     }

@@ -101,7 +101,7 @@ class AppBlockerService : java.lang.Runnable, Service() {
         val limitMinutes = prefs.getInt(currentForegroundPackage, -1)
 
         if (limitMinutes > 0) {
-            // Check today's total usage for this app
+            // Check today's total usage for this app strictly since 12:00 midnight
             val calendar = Calendar.getInstance().apply {
                 set(Calendar.HOUR_OF_DAY, 0)
                 set(Calendar.MINUTE, 0)
@@ -109,8 +109,7 @@ class AppBlockerService : java.lang.Runnable, Service() {
                 set(Calendar.MILLISECOND, 0)
             }
             val startOfDay = calendar.timeInMillis
-            val statsMap = usageStatsManager.queryAndAggregateUsageStats(startOfDay, now)
-            val appUsage = statsMap[currentForegroundPackage]?.totalTimeInForeground ?: 0L
+            val appUsage = getTodayAppUsageMillis(usageStatsManager, currentForegroundPackage, startOfDay, now)
             val usedMinutes = (appUsage / 60000L).toInt()
 
             if (usedMinutes >= limitMinutes) {
@@ -131,6 +130,43 @@ class AppBlockerService : java.lang.Runnable, Service() {
                 }
                 startActivity(lockIntent)
             }
+        }
+    }
+
+    private fun getTodayAppUsageMillis(usageStatsManager: UsageStatsManager, pkg: String, startOfDay: Long, now: Long): Long {
+        return try {
+            val events = usageStatsManager.queryEvents(startOfDay, now) ?: return 0L
+            val event = UsageEvents.Event()
+            var totalTime = 0L
+            var lastResume: Long? = null
+
+            while (events.hasNextEvent()) {
+                events.getNextEvent(event)
+                if (event.packageName == pkg) {
+                    when (event.eventType) {
+                        UsageEvents.Event.ACTIVITY_RESUMED,
+                        UsageEvents.Event.MOVE_TO_FOREGROUND -> {
+                            lastResume = event.timeStamp
+                        }
+                        UsageEvents.Event.ACTIVITY_PAUSED,
+                        UsageEvents.Event.MOVE_TO_BACKGROUND -> {
+                            if (lastResume != null) {
+                                totalTime += (event.timeStamp - lastResume).coerceAtLeast(0L)
+                                lastResume = null
+                            } else {
+                                totalTime += (event.timeStamp - startOfDay).coerceAtLeast(0L)
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (lastResume != null) {
+                totalTime += (now - lastResume).coerceAtLeast(0L)
+            }
+            totalTime
+        } catch (_: Exception) {
+            0L
         }
     }
 
