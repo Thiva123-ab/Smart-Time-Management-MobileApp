@@ -225,37 +225,71 @@ class MainActivity : FlutterActivity() {
         val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
             ?: return emptyList()
 
-        val aggregated = mutableMapOf<String, Long>()
+        val foregroundTimeMap = mutableMapOf<String, Long>()
+        val launchCountMap = mutableMapOf<String, Int>()
 
-        // 1. Try aggregated stats query for exact timestamp range
-        val aggregatedStats = try {
-            usageStatsManager.queryAndAggregateUsageStats(startTime, endTime)
-        } catch (_: Exception) {
-            emptyMap<String, UsageStats>()
-        }
+        // 1. Precise Event-Based Usage (strictly calculates time spent between startTime and endTime)
+        // This guarantees that after 12:00 midnight (start of today), the usage starts strictly from 0 minutes!
+        var hasValidEvents = false
+        try {
+            val events = usageStatsManager.queryEvents(startTime, endTime)
+            if (events != null) {
+                val startTimes = mutableMapOf<String, Long>()
+                val event = UsageEvents.Event()
 
-        if (aggregatedStats.isNotEmpty()) {
-            for ((pkg, stat) in aggregatedStats) {
-                val time = stat.totalTimeInForeground
-                if (time > 0) {
-                    aggregated[pkg] = time
+                while (events.hasNextEvent()) {
+                    events.getNextEvent(event)
+                    val pkg = event.packageName ?: continue
+                    val time = event.timeStamp
+
+                    if (pkg == "android" || pkg == packageName || pkg == "com.android.systemui") continue
+
+                    when (event.eventType) {
+                        UsageEvents.Event.ACTIVITY_RESUMED,
+                        UsageEvents.Event.MOVE_TO_FOREGROUND -> {
+                            hasValidEvents = true
+                            startTimes[pkg] = time
+                            launchCountMap[pkg] = (launchCountMap[pkg] ?: 0) + 1
+                        }
+                        UsageEvents.Event.ACTIVITY_PAUSED,
+                        UsageEvents.Event.MOVE_TO_BACKGROUND -> {
+                            hasValidEvents = true
+                            val resumedTime = startTimes[pkg]
+                            if (resumedTime != null) {
+                                val sessionDuration = (time - resumedTime).coerceAtLeast(0L)
+                                foregroundTimeMap[pkg] = (foregroundTimeMap[pkg] ?: 0L) + sessionDuration
+                                startTimes.remove(pkg)
+                            } else {
+                                // App was already in the foreground when startTime (midnight) occurred
+                                val sessionDuration = (time - startTime).coerceAtLeast(0L)
+                                foregroundTimeMap[pkg] = (foregroundTimeMap[pkg] ?: 0L) + sessionDuration
+                            }
+                        }
+                    }
+                }
+
+                // Any app currently still open in the foreground
+                for ((pkg, resumedTime) in startTimes) {
+                    val sessionDuration = (endTime - resumedTime).coerceAtLeast(0L)
+                    foregroundTimeMap[pkg] = (foregroundTimeMap[pkg] ?: 0L) + sessionDuration
                 }
             }
-        }
+        } catch (_: Exception) {}
 
-        // 2. Fallback to interval query if aggregated map was empty
-        if (aggregated.isEmpty()) {
-            val usageStatsList: List<UsageStats> = usageStatsManager.queryUsageStats(
-                UsageStatsManager.INTERVAL_DAILY,
-                startTime,
-                endTime
-            ) ?: emptyList()
+        // 2. Fallback: only if queryEvents yielded zero events AND we are querying past historical dates
+        // (If querying today and no events found, usage is genuinely 0 minutes after midnight!)
+        val isQueryingToday = (System.currentTimeMillis() - startTime) < 86400000L && startTime <= System.currentTimeMillis()
+        if (!hasValidEvents && !isQueryingToday) {
+            val aggregatedStats = try {
+                usageStatsManager.queryAndAggregateUsageStats(startTime, endTime)
+            } catch (_: Exception) {
+                emptyMap<String, UsageStats>()
+            }
 
-            for (stat in usageStatsList) {
-                val pkg = stat.packageName ?: continue
+            for ((pkg, stat) in aggregatedStats) {
                 val time = stat.totalTimeInForeground
-                if (time > 0) {
-                    aggregated[pkg] = (aggregated[pkg] ?: 0L) + time
+                if (time > 0 && pkg != "android" && pkg != packageName && pkg != "com.android.systemui") {
+                    foregroundTimeMap[pkg] = time
                 }
             }
         }
@@ -263,12 +297,12 @@ class MainActivity : FlutterActivity() {
         val pm = packageManager
         val resultList = mutableListOf<Map<String, Any>>()
 
-        for ((pkg, timeMillis) in aggregated) {
+        for ((pkg, timeMillis) in foregroundTimeMap) {
             val durationMinutes = (timeMillis / 60000L).toInt()
             if (durationMinutes <= 0) continue
 
-            // Filter out system framework package
-            if (pkg == "android" || pkg == packageName) continue
+            // Filter out system packages
+            if (pkg == "android" || pkg == packageName || pkg == "com.android.systemui") continue
 
             var appName: String? = null
             try {
@@ -304,7 +338,7 @@ class MainActivity : FlutterActivity() {
                 "packageName" to pkg,
                 "appName" to appName,
                 "durationMinutes" to durationMinutes,
-                "launchCount" to 1
+                "launchCount" to (launchCountMap[pkg] ?: 1)
             )
 
             // Attach app icon byte array
