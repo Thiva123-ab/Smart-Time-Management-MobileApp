@@ -286,80 +286,105 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Top Bar
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Focus & Flow',
-                        style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.textPrimaryColor(context)),
-                      ),
-                      const SizedBox(height: 4),
-                      Text('Enter deep concentration mode', style: TextStyle(color: AppColors.textSecondaryColor(context), fontSize: 13)),
-                    ],
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface(context),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.cardBorder(context)),
-                    ),
-                    child: Row(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        await _saveGoalProgress();
+        if (mounted) {
+          Navigator.pop(context, true);
+        }
+      },
+      child: Scaffold(
+        body: SafeArea(
+          child: Column(
+            children: [
+              // Top Bar
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
                       children: [
-                        Icon(Icons.shield_outlined, color: isDark ? AppColors.accentCyan : AppColors.primary, size: 16),
-                        const SizedBox(width: 4),
-                        Text(
-                          'DND Mode',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: isDark ? AppColors.accentCyan : AppColors.primary,
-                            fontWeight: FontWeight.bold,
+                        if (Navigator.canPop(context)) ...[
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                            tooltip: 'Back',
+                            onPressed: () async {
+                              await _saveGoalProgress();
+                              if (mounted) Navigator.pop(context, true);
+                            },
                           ),
+                          const SizedBox(width: 4),
+                        ],
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Focus & Flow',
+                              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimaryColor(context)),
+                            ),
+                            const SizedBox(height: 2),
+                            Text('Enter deep concentration mode', style: TextStyle(color: AppColors.textSecondaryColor(context), fontSize: 12)),
+                          ],
                         ),
                       ],
                     ),
-                  ),
-                ],
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface(context),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.cardBorder(context)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.shield_outlined, color: isDark ? AppColors.accentCyan : AppColors.primary, size: 16),
+                          const SizedBox(width: 4),
+                          Text(
+                            'DND Mode',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: isDark ? AppColors.accentCyan : AppColors.primary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
 
-            // Tab Bar
-            TabBar(
-              controller: _tabController,
-              indicatorColor: isDark ? AppColors.accentCyan : AppColors.primary,
-              labelColor: isDark ? AppColors.accentCyan : AppColors.primary,
-              unselectedLabelColor: AppColors.textSecondaryColor(context),
-              indicatorWeight: 3,
-              tabs: const [
-                Tab(text: 'Deep Focus Session'),
-                Tab(text: 'Pomodoro Timer'),
-              ],
-            ),
-
-            // Tab Views
-            Expanded(
-              child: TabBarView(
+              // Tab Bar
+              TabBar(
                 controller: _tabController,
-                children: [
-                  // Tab 1: Deep Focus
-                  _buildDeepFocusTab(),
-
-                  // Tab 2: Pomodoro
-                  _buildPomodoroTab(),
+                indicatorColor: isDark ? AppColors.accentCyan : AppColors.primary,
+                labelColor: isDark ? AppColors.accentCyan : AppColors.primary,
+                unselectedLabelColor: AppColors.textSecondaryColor(context),
+                indicatorWeight: 3,
+                tabs: const [
+                  Tab(text: 'Deep Focus Session'),
+                  Tab(text: 'Pomodoro Timer'),
                 ],
               ),
-            ),
-          ],
+
+              // Tab Views
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    // Tab 1: Deep Focus
+                    _buildDeepFocusTab(),
+
+                    // Tab 2: Pomodoro
+                    _buildPomodoroTab(),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -470,22 +495,60 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
           const SizedBox(height: 28),
 
           // Actions
-          if (!_isFocusActive)
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                minimumSize: const Size.fromHeight(54),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          if (!_isFocusActive) ...[
+            if (_focusElapsedSeconds > 0)
+              Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size.fromHeight(52),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      onPressed: () => _startFocusSession(resume: true),
+                      icon: const Icon(Icons.play_arrow, size: 26, color: Colors.white),
+                      label: const Text(
+                        'Resume Deep Focus',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 1,
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.redAccent,
+                        side: const BorderSide(color: Colors.redAccent),
+                        minimumSize: const Size.fromHeight(52),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      onPressed: _resetFocusSession,
+                      tooltip: 'Reset Timer',
+                      child: const Icon(Icons.restart_alt, size: 24),
+                    ),
+                  ),
+                ],
+              )
+            else
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(54),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                onPressed: () => _startFocusSession(resume: false),
+                icon: const Icon(Icons.play_arrow, size: 28, color: Colors.white),
+                label: const Text(
+                  'Start Deep Focus',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
               ),
-              onPressed: _startFocusSession,
-              icon: const Icon(Icons.play_arrow, size: 28, color: Colors.white),
-              label: const Text(
-                'Start Deep Focus',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-              ),
-            )
-          else ...[
+          ] else ...[
             Row(
               children: [
                 Expanded(
@@ -517,19 +580,38 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
                 ),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
 
-            // Distraction Logger
-            OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                side: BorderSide(color: AppColors.cardBorder(context)),
-                foregroundColor: AppColors.textSecondaryColor(context),
-                minimumSize: const Size.fromHeight(46),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              ),
-              onPressed: _logDistraction,
-              icon: const Icon(Icons.psychology_outlined, size: 20),
-              label: Text('Log Distraction / Urge ($_focusDistractions)'),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: AppColors.cardBorder(context)),
+                      foregroundColor: AppColors.textSecondaryColor(context),
+                      minimumSize: const Size.fromHeight(46),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    onPressed: _logDistraction,
+                    icon: const Icon(Icons.psychology_outlined, size: 20),
+                    label: Text('Distraction ($_focusDistractions)'),
+                  ),
+                ),
+                if (_isFocusPaused) ...[
+                  const SizedBox(width: 10),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Colors.redAccent),
+                      foregroundColor: Colors.redAccent,
+                      minimumSize: const Size(100, 46),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    onPressed: _resetFocusSession,
+                    icon: const Icon(Icons.restart_alt, size: 18),
+                    label: const Text('Reset'),
+                  ),
+                ],
+              ],
             ),
           ],
         ],
