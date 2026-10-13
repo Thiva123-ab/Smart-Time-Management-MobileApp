@@ -527,8 +527,10 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
                       onPressed: _resetFocusSession,
-                      tooltip: 'Reset Timer',
-                      child: const Icon(Icons.restart_alt, size: 24),
+                      child: const Tooltip(
+                        message: 'Reset Timer',
+                        child: Icon(Icons.restart_alt, size: 24),
+                      ),
                     ),
                   ),
                 ],
