@@ -398,6 +398,7 @@ class DatabaseHelper {
 
   Future<int> deleteTimeBlock(int id) async {
     final db = await instance.database;
+    await db.delete('time_sub_tasks', where: 'blockId = ?', whereArgs: [id]);
     return await db.delete('time_blocks', where: 'id = ?', whereArgs: [id]);
   }
 
@@ -420,6 +421,65 @@ class DatabaseHelper {
       where: 'id = ?',
       whereArgs: [id],
     );
+  }
+
+  // Time Sub-Tasks (Urgent in-block allocations)
+  Future<int> insertTimeSubTask(TimeSubTask subTask) async {
+    final db = await instance.database;
+    return await db.insert('time_sub_tasks', subTask.toMap());
+  }
+
+  Future<int> updateTimeSubTask(TimeSubTask subTask) async {
+    final db = await instance.database;
+    return await db.update(
+      'time_sub_tasks',
+      subTask.toMap(),
+      where: 'id = ?',
+      whereArgs: [subTask.id],
+    );
+  }
+
+  Future<int> deleteTimeSubTask(int id) async {
+    final db = await instance.database;
+    return await db.delete('time_sub_tasks', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> toggleTimeSubTask(int id, bool isCompleted) async {
+    final db = await instance.database;
+    await db.update(
+      'time_sub_tasks',
+      {'isCompleted': isCompleted ? 1 : 0},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<List<TimeSubTask>> getSubTasksForBlock(int blockId) async {
+    final db = await instance.database;
+    final result = await db.query(
+      'time_sub_tasks',
+      where: 'blockId = ?',
+      whereArgs: [blockId],
+      orderBy: 'createdAt ASC',
+    );
+    return result.map((json) => TimeSubTask.fromMap(json)).toList();
+  }
+
+  Future<Map<int, List<TimeSubTask>>> getSubTasksForDate(String date) async {
+    final db = await instance.database;
+    final result = await db.rawQuery('''
+      SELECT s.* FROM time_sub_tasks s
+      INNER JOIN time_blocks b ON s.blockId = b.id
+      WHERE b.date = ?
+      ORDER BY s.createdAt ASC
+    ''', [date]);
+
+    final map = <int, List<TimeSubTask>>{};
+    for (var row in result) {
+      final subTask = TimeSubTask.fromMap(row);
+      map.putIfAbsent(subTask.blockId, () => []).add(subTask);
+    }
+    return map;
   }
 
   // Clear data
