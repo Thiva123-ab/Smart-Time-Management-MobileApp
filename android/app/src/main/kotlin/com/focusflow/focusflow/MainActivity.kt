@@ -132,6 +132,13 @@ class MainActivity : FlutterActivity() {
                     TaskNotificationManager.cancelAlarm(this, id)
                     result.success(true)
                 }
+                "cancelTaskAlarms" -> {
+                    val blockId = call.argument<Int>("blockId") ?: 0
+                    if (blockId > 0) {
+                        TaskNotificationManager.cancelAllForTask(this, blockId)
+                    }
+                    result.success(true)
+                }
                 else -> {
                     result.notImplemented()
                 }

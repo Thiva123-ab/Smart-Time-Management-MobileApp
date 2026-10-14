@@ -110,6 +110,12 @@ class UsageTrackingService {
     } catch (_) {}
   }
 
+  static Future<void> cancelTaskAlarms(int blockId) async {
+    try {
+      await _channel.invokeMethod('cancelTaskAlarms', {'blockId': blockId});
+    } catch (_) {}
+  }
+
   static Future<Uint8List?> fetchAppIcon(String packageName) async {
     if (_iconCache.containsKey(packageName)) {
       return _iconCache[packageName];

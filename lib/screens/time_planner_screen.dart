@@ -870,8 +870,11 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
   Future<void> _toggleBlockStatus(TimeBlock block) async {
     if (block.id == null) return;
     final willComplete = !block.isCompleted;
+    if (willComplete) {
+      await ScheduleNotificationService.instance.cancelAlarmsForBlock(block.id!);
+    }
     await DatabaseHelper.instance.toggleTimeBlock(block.id!, willComplete);
-    ScheduleNotificationService.instance.rescheduleNativeAlarms();
+    await ScheduleNotificationService.instance.rescheduleNativeAlarms();
     _loadBlocks();
 
     if (mounted) {
@@ -892,8 +895,9 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
   }
 
   Future<void> _deleteBlock(int id) async {
+    await ScheduleNotificationService.instance.cancelAlarmsForBlock(id);
     await DatabaseHelper.instance.deleteTimeBlock(id);
-    ScheduleNotificationService.instance.rescheduleNativeAlarms();
+    await ScheduleNotificationService.instance.rescheduleNativeAlarms();
     _loadBlocks();
   }
 

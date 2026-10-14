@@ -95,6 +95,7 @@ object TaskNotificationManager {
         val intent = Intent(context, ScheduleAlarmReceiver::class.java).apply {
             action = "com.focusflow.app.SCHEDULE_ALARM"
             putExtra("id", id)
+            putExtra("blockId", id / 100)
             putExtra("title", title)
             putExtra("body", body)
             putExtra("subText", subText)
@@ -114,14 +115,47 @@ object TaskNotificationManager {
     }
 
     fun cancelAlarm(context: Context, id: Int) {
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
         val intent = Intent(context, ScheduleAlarmReceiver::class.java).apply {
             action = "com.focusflow.app.SCHEDULE_ALARM"
         }
         val flags = PendingIntent.FLAG_NO_CREATE or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
         val pendingIntent = PendingIntent.getBroadcast(context, id, intent, flags)
         if (pendingIntent != null) {
-            alarmManager.cancel(pendingIntent)
+            alarmManager?.cancel(pendingIntent)
+            pendingIntent.cancel()
+        }
+
+        // Also dismiss any active status bar notification with this ID
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+        notificationManager?.cancel(id)
+    }
+
+    fun cancelAllForTask(context: Context, blockId: Int) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+
+        // All possible alarm/notification IDs for this block
+        val idsToCancel = mutableListOf(
+            blockId * 100 + 1,  // pre-start
+            blockId * 100 + 2,  // start
+            blockId * 100 + 99  // pre-end
+        )
+        for (i in 10..60) {
+            idsToCancel.add(blockId * 100 + i) // interval checkpoints
+        }
+
+        for (id in idsToCancel) {
+            val intent = Intent(context, ScheduleAlarmReceiver::class.java).apply {
+                action = "com.focusflow.app.SCHEDULE_ALARM"
+            }
+            val flags = PendingIntent.FLAG_NO_CREATE or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+            val pendingIntent = PendingIntent.getBroadcast(context, id, intent, flags)
+            if (pendingIntent != null) {
+                alarmManager?.cancel(pendingIntent)
+                pendingIntent.cancel()
+            }
+            notificationManager?.cancel(id)
         }
     }
 }

@@ -28,6 +28,12 @@ class ScheduleNotificationService {
     _checkerTimer = null;
   }
 
+  /// Completely cancels all native alarms, active status-bar notifications, and cached notified keys for a deleted or completed task.
+  Future<void> cancelAlarmsForBlock(int blockId) async {
+    await UsageTrackingService.cancelTaskAlarms(blockId);
+    _notifiedKeys.removeWhere((k) => k.startsWith('${blockId}_'));
+  }
+
   /// Re-syncs native AlarmManager exact alarms for all active tasks of today.
   /// This ensures notifications fire reliably even if the app is closed or phone is locked.
   Future<void> rescheduleNativeAlarms() async {
@@ -35,6 +41,14 @@ class ScheduleNotificationService {
     final todayStr = DateFormat('yyyy-MM-dd').format(now);
 
     final blocks = await DatabaseHelper.instance.getTimeBlocksForDate(todayStr);
+
+    // Cancel alarms for any completed blocks
+    for (final b in blocks) {
+      if (b.isCompleted && b.id != null) {
+        await cancelAlarmsForBlock(b.id!);
+      }
+    }
+
     if (blocks.isEmpty) return;
 
     final activeBlocks = blocks.where((b) => !b.isCompleted).toList();
