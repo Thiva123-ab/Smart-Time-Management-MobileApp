@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../data/local/database_helper.dart';
 import '../data/models/app_usage.dart';
@@ -7,6 +8,7 @@ import '../data/models/time_block.dart';
 import '../domain/app_category_manager.dart';
 import '../domain/productivity_score_engine.dart';
 import '../services/usage_tracking_service.dart';
+import '../services/transport_tracking_service.dart';
 import '../data/models/user_profile.dart';
 import 'time_planner_screen.dart';
 import 'focus_screen.dart';
@@ -175,9 +177,86 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
 
-              // 2. Productivity Score Card
+              // Live Transport Active Indicator Banner
+              Consumer<TransportTrackingService>(
+                builder: (ctx, transportService, _) {
+                  if (!transportService.isTracking) return const SizedBox.shrink();
+                  final elapsedSec = transportService.currentElapsedSeconds;
+                  final h = elapsedSec ~/ 3600;
+                  final m = (elapsedSec % 3600) ~/ 60;
+                  final s = elapsedSec % 60;
+                  final timeStr = h > 0
+                      ? '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}'
+                      : '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00B4D8).withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: const Color(0xFF00B4D8), width: 1.5),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF00B4D8),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.directions_bus_filled_rounded, color: Colors.white, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Text(
+                                    'Transport Tracking Active',
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF00B4D8)),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                    decoration: BoxDecoration(color: Colors.redAccent, borderRadius: BorderRadius.circular(4)),
+                                    child: const Text('LIVE', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Time running: $timeStr • Tap to manage or stop',
+                                style: TextStyle(fontSize: 11, color: AppColors.textSecondaryColor(context)),
+                              ),
+                            ],
+                          ),
+                        ),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF00B4D8),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            elevation: 0,
+                          ),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const TimePlannerScreen()),
+                            ).then((_) => _loadData());
+                          },
+                          child: const Text('Manage', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(

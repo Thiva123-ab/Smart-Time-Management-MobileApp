@@ -934,6 +934,32 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
     }
   }
 
+  void _cancelTransportTracking() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Discard Transport Tracking?'),
+        content: const Text('Are you sure you want to stop transport tracking without saving this trip?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Keep Tracking')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Discard', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      await _transportService.cancelTracking();
+      _syncTransportFromService();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Transport tracking discarded.')),
+        );
+      }
+    }
+  }
+
   String _formatStopwatch(int totalSeconds) {
     final h = totalSeconds ~/ 3600;
     final m = (totalSeconds % 3600) ~/ 60;
@@ -1730,6 +1756,23 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                 icon: const Icon(Icons.stop_circle, size: 20),
                 label: const Text('End & Save Transport Block', style: TextStyle(fontWeight: FontWeight.bold)),
                 onPressed: _stopAndSaveTransportTracking,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Center(
+              child: TextButton(
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                ),
+                onPressed: _cancelTransportTracking,
+                child: Text(
+                  'Discard trip without saving',
+                  style: TextStyle(
+                    color: AppColors.textMutedColor(context),
+                    fontSize: 11,
+                  ),
+                ),
               ),
             ),
           ] else ...[
