@@ -4,8 +4,10 @@ import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
 import '../data/local/database_helper.dart';
 import '../data/models/time_block.dart';
+import '../data/models/focus_session.dart';
 import '../services/usage_tracking_service.dart';
 import '../services/schedule_notification_service.dart';
+import '../services/transport_tracking_service.dart';
 import 'focus_screen.dart';
 
 class TimePlannerScreen extends StatefulWidget {
@@ -18,14 +20,17 @@ class TimePlannerScreen extends StatefulWidget {
 class _TimePlannerScreenState extends State<TimePlannerScreen> {
   DateTime _selectedDate = DateTime.now();
   List<TimeBlock> _blocks = [];
+  List<FocusSession> _focusSessions = [];
   bool _isLoading = true;
   bool _hasNotificationPermission = true;
 
-  // Transport live tracker state
+  // Transport live tracker service & state
+  final TransportTrackingService _transportService = TransportTrackingService.instance;
   bool _isTrackingTransport = false;
   DateTime? _transportStartTime;
   int _transportElapsedSeconds = 0;
   Timer? _transportTimer;
+  late ScrollController _dateScrollController;
 
   final List<String> _categories = [
     'Study',
@@ -43,8 +48,81 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
   @override
   void initState() {
     super.initState();
+    _dateScrollController = ScrollController();
     _checkNotificationPermission();
+    _syncTransportFromService();
+    _transportService.addListener(_onTransportServiceChanged);
     _loadBlocks();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToSelectedDate();
+    });
+  }
+
+  void _scrollToSelectedDate() {
+    if (!_dateScrollController.hasClients) return;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final startDate = today.subtract(const Duration(days: 15));
+    final targetDate = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
+    final dayIndex = targetDate.difference(startDate).inDays;
+    if (dayIndex >= 0 && dayIndex <= 30) {
+      final screenWidth = MediaQuery.of(context).size.width;
+      final targetOffset = (dayIndex * 66.0) - (screenWidth / 2) + 33.0;
+      _dateScrollController.animateTo(
+        targetOffset.clamp(0.0, _dateScrollController.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  void _syncTransportFromService() {
+    final isTracking = _transportService.isTracking;
+    final startTime = _transportService.startTime;
+    final elapsed = _transportService.currentElapsedSeconds;
+
+    if (mounted) {
+      setState(() {
+        _isTrackingTransport = isTracking;
+        _transportStartTime = startTime;
+        _transportElapsedSeconds = elapsed;
+      });
+    }
+
+    if (isTracking) {
+      _startUiTimer();
+    } else {
+      _transportTimer?.cancel();
+      _transportTimer = null;
+    }
+  }
+
+  void _onTransportServiceChanged() {
+    if (mounted) {
+      _syncTransportFromService();
+    }
+  }
+
+  void _startUiTimer() {
+    _transportTimer?.cancel();
+    _transportTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        if (_transportService.isTracking) {
+          setState(() {
+            _transportElapsedSeconds = _transportService.currentElapsedSeconds;
+            _transportStartTime = _transportService.startTime;
+            _isTrackingTransport = true;
+          });
+        } else {
+          _transportTimer?.cancel();
+          setState(() {
+            _isTrackingTransport = false;
+            _transportElapsedSeconds = 0;
+            _transportStartTime = null;
+          });
+        }
+      }
+    });
   }
 
   Future<void> _checkNotificationPermission() async {
@@ -57,6 +135,8 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
   @override
   void dispose() {
     _transportTimer?.cancel();
+    _transportService.removeListener(_onTransportServiceChanged);
+    _dateScrollController.dispose();
     super.dispose();
   }
 
@@ -66,6 +146,7 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
     setState(() => _isLoading = true);
     final dateStr = _dateString(_selectedDate);
     final blocks = await DatabaseHelper.instance.getTimeBlocksForDate(dateStr);
+    final sessions = await DatabaseHelper.instance.getFocusSessionsForDate(dateStr);
 
     // Smart priority sorting:
     // 1. Incomplete/Pending tasks FIRST (sorted by start time)
@@ -82,10 +163,13 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
       return aMin.compareTo(bMin);
     });
 
-    setState(() {
-      _blocks = blocks;
-      _isLoading = false;
-    });
+    if (mounted) {
+      setState(() {
+        _blocks = blocks;
+        _focusSessions = sessions;
+        _isLoading = false;
+      });
+    }
   }
 
   Color _getCategoryColor(String category) {
@@ -150,16 +234,7 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final targetDate = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
-
-    if (targetDate.isBefore(today)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Cannot plan or schedule time blocks for past dates.'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-      return;
-    }
+    final isPast = targetDate.isBefore(today);
 
     final titleController = TextEditingController(text: blockToEdit?.title ?? '');
     final notesController = TextEditingController(text: blockToEdit?.notes ?? '');
@@ -831,63 +906,28 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
     );
   }
 
-  void _startTransportTracking() {
-    setState(() {
-      _isTrackingTransport = true;
-      _transportStartTime = DateTime.now();
-      _transportElapsedSeconds = 0;
-    });
-
-    _transportTimer?.cancel();
-    _transportTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (mounted) {
-        setState(() {
-          _transportElapsedSeconds++;
-        });
-      }
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('🚌 Transport timer started! Time is now calculating live.'),
-        backgroundColor: Color(0xFF00B4D8),
-      ),
-    );
+  void _startTransportTracking() async {
+    await _transportService.startTracking();
+    _syncTransportFromService();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('🚌 Transport timer started! Time keeps running continuously in background.'),
+          backgroundColor: Color(0xFF00B4D8),
+        ),
+      );
+    }
   }
 
   Future<void> _stopAndSaveTransportTracking() async {
-    _transportTimer?.cancel();
-    final startDt = _transportStartTime ?? DateTime.now().subtract(Duration(seconds: _transportElapsedSeconds));
-    final endDt = DateTime.now();
-
-    int durationMin = (_transportElapsedSeconds / 60).round();
-    if (durationMin < 1) durationMin = 1;
-
-    final block = TimeBlock(
-      title: 'Transport / Commute',
-      category: 'Transport',
-      date: _dateString(_selectedDate),
-      startTime: DateFormat('hh:mm a').format(startDt),
-      endTime: DateFormat('hh:mm a').format(endDt),
-      durationMinutes: durationMin,
-      isCompleted: true,
-      notes: 'Recorded via live Transport Timer (${_formatStopwatch(_transportElapsedSeconds)})',
-    );
-
-    await DatabaseHelper.instance.insertTimeBlock(block);
-
-    setState(() {
-      _isTrackingTransport = false;
-      _transportStartTime = null;
-      _transportElapsedSeconds = 0;
-    });
-
+    final block = await _transportService.stopAndSaveTracking(customDate: _selectedDate);
+    _syncTransportFromService();
     _loadBlocks();
 
-    if (mounted) {
+    if (mounted && block != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('✅ Transport completed: $durationMin mins logged to Schedule!'),
+          content: Text('✅ Transport completed: ${block.durationMinutes} mins logged to Schedule!'),
           backgroundColor: AppColors.success,
         ),
       );
@@ -895,8 +935,12 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
   }
 
   String _formatStopwatch(int totalSeconds) {
-    final m = totalSeconds ~/ 60;
+    final h = totalSeconds ~/ 3600;
+    final m = (totalSeconds % 3600) ~/ 60;
     final s = totalSeconds % 60;
+    if (h > 0) {
+      return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+    }
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
@@ -904,16 +948,7 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final targetDate = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
-    if (targetDate.isBefore(today)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Cannot add tasks to past dates.'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-      return;
-    }
-
+    final isPast = targetDate.isBefore(today);
     final isToday = targetDate.year == now.year && targetDate.month == now.month && targetDate.day == now.day;
     int finalStartHour = startHour;
     int finalStartMin = startMin;
