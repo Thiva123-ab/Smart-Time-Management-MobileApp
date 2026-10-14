@@ -6,15 +6,20 @@ import 'screens/main_navigation_screen.dart';
 
 import 'services/schedule_notification_service.dart';
 import 'services/usage_tracking_service.dart';
+import 'services/transport_tracking_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   ScheduleNotificationService.instance.start();
+  TransportTrackingService.instance.init();
   // Request Android runtime notification permission on startup
   UsageTrackingService.requestNotificationPermission();
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => ThemeProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider.value(value: TransportTrackingService.instance),
+      ],
       child: const FocusFlowApp(),
     ),
   );
