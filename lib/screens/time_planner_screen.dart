@@ -2553,53 +2553,26 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
 
             // Action row
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
                 color: AppColors.surfaceVariant(context).withValues(alpha: 0.5),
                 borderRadius: const BorderRadius.vertical(bottom: Radius.circular(18)),
               ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // Dedicated Tick / Mark Complete Button
-                  InkWell(
-                    onTap: () => _toggleBlockStatus(block),
-                    borderRadius: BorderRadius.circular(8),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                      child: Row(
-                        children: [
-                          Icon(
-                            isDone ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
-                            size: 18,
-                            color: isDone ? AppColors.success : (isDark ? Colors.grey[400] : Colors.grey[600]),
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            isDone ? 'Completed ✓' : 'Mark Done',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: isDone ? AppColors.success : AppColors.textPrimaryColor(context),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
                   // Quick Start Focus Session button
                   InkWell(
                     onTap: () => _startFocusForBlock(block),
                     borderRadius: BorderRadius.circular(8),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                       child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.play_circle_fill, size: 18, color: AppColors.primary),
-                          const SizedBox(width: 5),
+                          const Icon(Icons.play_circle_fill, size: 16, color: AppColors.primary),
+                          const SizedBox(width: 4),
                           Text(
-                            'Focus Timer',
+                            'Focus',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
@@ -2611,18 +2584,25 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                     ),
                   ),
 
+                  const SizedBox(width: 4),
+
                   // Urgent Time Slot Allocation Button
                   InkWell(
                     onTap: () => _showAllocateUrgentTimeDialog(block),
                     borderRadius: BorderRadius.circular(8),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                       child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.flash_on_rounded, size: 16, color: Colors.amber),
-                          const SizedBox(width: 4),
+                          const Icon(Icons.flash_on_rounded, size: 15, color: Colors.amber),
+                          const SizedBox(width: 3),
                           Text(
-                            'Urgent Slot',
+                            '+ Urgent',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
@@ -2634,25 +2614,30 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                     ),
                   ),
 
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.edit_outlined, size: 18),
-                        color: AppColors.textSecondaryColor(context),
-                        tooltip: 'Edit',
-                        onPressed: () => _showAddOrEditDialog(blockToEdit: block),
-                        constraints: const BoxConstraints(),
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline, size: 18),
-                        color: AppColors.danger,
-                        tooltip: 'Delete',
-                        onPressed: () => _deleteBlock(block.id!),
-                        constraints: const BoxConstraints(),
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
-                      ),
-                    ],
+                  const Spacer(),
+
+                  // Edit Button
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, size: 18),
+                    color: AppColors.textSecondaryColor(context),
+                    tooltip: 'Edit',
+                    onPressed: () => _showAddOrEditDialog(blockToEdit: block),
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.all(6),
+                    constraints: const BoxConstraints(),
+                  ),
+
+                  const SizedBox(width: 6),
+
+                  // Delete Button - strictly inside card box with safe spacing
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 18),
+                    color: AppColors.danger,
+                    tooltip: 'Delete',
+                    onPressed: () => _deleteBlock(block.id!),
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.all(6),
+                    constraints: const BoxConstraints(),
                   ),
                 ],
               ),
