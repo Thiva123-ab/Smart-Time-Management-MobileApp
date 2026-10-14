@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
 import '../data/local/database_helper.dart';
 import '../data/models/time_block.dart';
+import '../data/models/time_sub_task.dart';
 import '../data/models/focus_session.dart';
 import '../services/usage_tracking_service.dart';
 import '../services/schedule_notification_service.dart';
@@ -20,6 +21,7 @@ class TimePlannerScreen extends StatefulWidget {
 class _TimePlannerScreenState extends State<TimePlannerScreen> {
   DateTime _selectedDate = DateTime.now();
   List<TimeBlock> _blocks = [];
+  Map<int, List<TimeSubTask>> _subTasks = {};
   List<FocusSession> _focusSessions = [];
   bool _isLoading = true;
   bool _hasNotificationPermission = true;
@@ -147,6 +149,7 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
     final dateStr = _dateString(_selectedDate);
     final blocks = await DatabaseHelper.instance.getTimeBlocksForDate(dateStr);
     final sessions = await DatabaseHelper.instance.getFocusSessionsForDate(dateStr);
+    final subTasks = await DatabaseHelper.instance.getSubTasksForDate(dateStr);
 
     // Smart priority sorting:
     // 1. Incomplete/Pending tasks FIRST (sorted by start time)
@@ -166,6 +169,7 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
     if (mounted) {
       setState(() {
         _blocks = blocks;
+        _subTasks = subTasks;
         _focusSessions = sessions;
         _isLoading = false;
       });
@@ -902,6 +906,375 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
           initialDurationMinutes: block.durationMinutes,
           autoStartFocus: true,
         ),
+      ),
+    );
+  }
+
+  Future<void> _toggleSubTask(TimeSubTask subTask) async {
+    if (subTask.id == null) return;
+    final willComplete = !subTask.isCompleted;
+    await DatabaseHelper.instance.toggleTimeSubTask(subTask.id!, willComplete);
+    _loadBlocks();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            willComplete
+                ? '✅ Urgent task "${subTask.title}" marked as COMPLETED!'
+                : '↩️ Urgent task "${subTask.title}" marked as PENDING.',
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: willComplete ? AppColors.success : Colors.blueGrey,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  Future<void> _deleteSubTask(TimeSubTask subTask) async {
+    if (subTask.id == null) return;
+    await DatabaseHelper.instance.deleteTimeSubTask(subTask.id!);
+    _loadBlocks();
+  }
+
+  void _startFocusForSubTask(TimeSubTask subTask, TimeBlock parentBlock) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FocusScreen(
+          initialTask: '[Urgent] ${subTask.title}',
+          initialDurationMinutes: subTask.durationMinutes,
+          autoStartFocus: true,
+        ),
+      ),
+    );
+  }
+
+  void _showAllocateUrgentTimeDialog(TimeBlock parentBlock) {
+    final titleController = TextEditingController();
+    int selectedDuration = 15;
+    bool focusImmediately = false;
+
+    // Calculate time in parent block
+    final existingSubtasks = _subTasks[parentBlock.id] ?? [];
+    final alreadyAllocated = existingSubtasks.fold<int>(0, (sum, item) => sum + item.durationMinutes);
+    final remainingParentMins = (parentBlock.durationMinutes - alreadyAllocated).clamp(0, 9999);
+
+    final presetTasks = [
+      {'title': 'Urgent Call', 'duration': 10, 'icon': Icons.phone_in_talk_rounded},
+      {'title': 'Emergency Fix', 'duration': 20, 'icon': Icons.build_rounded},
+      {'title': 'Urgent Email', 'duration': 15, 'icon': Icons.mail_rounded},
+      {'title': 'Quick Break', 'duration': 10, 'icon': Icons.coffee_rounded},
+      {'title': 'Urgent Errand', 'duration': 15, 'icon': Icons.directions_run_rounded},
+      {'title': 'Quick Review', 'duration': 10, 'icon': Icons.rate_review_rounded},
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+
+          return Container(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+              top: 20,
+              left: 20,
+              right: 20,
+            ),
+            decoration: BoxDecoration(
+              color: AppColors.surface(context),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.withOpacity(0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.flash_on_rounded, color: Colors.amber, size: 22),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Allocate Urgent Time',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textPrimaryColor(context),
+                              ),
+                            ),
+                            Text(
+                              'Inside: ${parentBlock.title} (${parentBlock.startTime} - ${parentBlock.endTime})',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondaryColor(context),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: const Icon(Icons.close),
+                        color: AppColors.textMutedColor(context),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Remaining time pill
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.amber.withOpacity(0.2)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline, size: 16, color: Colors.amber),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Sudden work during this block. Total: ${parentBlock.durationMinutes}m | Remaining: ${remainingParentMins}m',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? Colors.amber[200] : Colors.amber[900],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Quick preset chips
+                  Text(
+                    'Quick Presets (Hadisiye Vada):',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondaryColor(context),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: presetTasks.map((preset) {
+                      final isSelected = titleController.text == preset['title'];
+                      return InkWell(
+                        onTap: () {
+                          setSheetState(() {
+                            titleController.text = preset['title'] as String;
+                            selectedDuration = preset['duration'] as int;
+                          });
+                        },
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? Colors.amber
+                                : AppColors.surfaceVariant(context),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: isSelected ? Colors.amber : Colors.transparent,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                preset['icon'] as IconData,
+                                size: 14,
+                                color: isSelected ? Colors.black : (isDark ? Colors.white70 : Colors.black87),
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                '${preset['title']} (${preset['duration']}m)',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: isSelected ? Colors.black : AppColors.textPrimaryColor(context),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Task Title TextField
+                  Text(
+                    'Urgent Task Title',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondaryColor(context),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: titleController,
+                    style: TextStyle(color: AppColors.textPrimaryColor(context)),
+                    decoration: InputDecoration(
+                      hintText: 'e.g., Quick phone call with client',
+                      hintStyle: TextStyle(color: AppColors.textMutedColor(context)),
+                      filled: true,
+                      fillColor: AppColors.surfaceVariant(context),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Duration selection
+                  Text(
+                    'Urgent Duration: $selectedDuration minutes',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondaryColor(context),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    children: [5, 10, 15, 20, 30, 45].map((dur) {
+                      final isSel = selectedDuration == dur;
+                      return ChoiceChip(
+                        label: Text('${dur}m'),
+                        selected: isSel,
+                        selectedColor: Colors.amber,
+                        backgroundColor: AppColors.surfaceVariant(context),
+                        labelStyle: TextStyle(
+                          color: isSel ? Colors.black : AppColors.textPrimaryColor(context),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                        onSelected: (val) {
+                          if (val) setSheetState(() => selectedDuration = dur);
+                        },
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Checkbox: Start Focus Immediately
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    activeColor: Colors.amber,
+                    checkColor: Colors.black,
+                    title: const Text(
+                      'Start Focus Timer immediately for this urgent task',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                    ),
+                    value: focusImmediately,
+                    onChanged: (val) {
+                      setSheetState(() => focusImmediately = val ?? false);
+                    },
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Save Buttons
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.amber.shade700,
+                        foregroundColor: Colors.black,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        elevation: 0,
+                      ),
+                      icon: Icon(focusImmediately ? Icons.play_arrow_rounded : Icons.check_circle_rounded),
+                      label: Text(
+                        focusImmediately ? 'Save & Start Focus Now' : 'Save Urgent Time in Block',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                      onPressed: () async {
+                        final title = titleController.text.trim();
+                        if (title.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Please enter an urgent task title')),
+                          );
+                          return;
+                        }
+
+                        final now = DateTime.now();
+                        final startStr = DateFormat('hh:mm a').format(now);
+                        final endStr = DateFormat('hh:mm a').format(now.add(Duration(minutes: selectedDuration)));
+
+                        final newSubTask = TimeSubTask(
+                          blockId: parentBlock.id!,
+                          title: title,
+                          durationMinutes: selectedDuration,
+                          startTime: startStr,
+                          endTime: endStr,
+                          isUrgent: true,
+                        );
+
+                        await DatabaseHelper.instance.insertTimeSubTask(newSubTask);
+                        if (mounted) {
+                          Navigator.pop(ctx);
+                          _loadBlocks();
+
+                          if (focusImmediately) {
+                            _startFocusForSubTask(newSubTask, parentBlock);
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('⚡ Urgent task "$title" (${selectedDuration}m) saved in "${parentBlock.title}"!'),
+                                backgroundColor: Colors.amber.shade800,
+                              ),
+                            );
+                          }
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -1801,17 +2174,40 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
     final catColor = _getCategoryColor(block.category);
     final isDone = block.isCompleted;
 
+    final now = DateTime.now();
+    final isToday = _selectedDate.year == now.year &&
+        _selectedDate.month == now.month &&
+        _selectedDate.day == now.day;
+    final currentMin = now.hour * 60 + now.minute;
+    final startMin = _timeToMinutes(block.startTime);
+    int endMin = _timeToMinutes(block.endTime);
+    if (endMin <= startMin) endMin += 24 * 60;
+    final isRunningNow = isToday && !block.isCompleted && (currentMin >= startMin && currentMin < endMin);
+
+    final subTasks = _subTasks[block.id] ?? [];
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: AppColors.surface(context),
+        color: isRunningNow
+            ? (isDark ? const Color(0xFF1E2838) : const Color(0xFFF0F7FF))
+            : AppColors.surface(context),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: isDone
-              ? AppColors.success.withOpacity(0.3)
-              : AppColors.cardBorder(context),
-          width: isDone ? 1.5 : 1,
+          color: isRunningNow
+              ? Colors.amber
+              : (isDone ? AppColors.success.withOpacity(0.3) : AppColors.cardBorder(context)),
+          width: isRunningNow ? 2.0 : (isDone ? 1.5 : 1),
         ),
+        boxShadow: isRunningNow
+            ? [
+                BoxShadow(
+                  color: Colors.amber.withOpacity(0.2),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ]
+            : null,
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
@@ -1862,7 +2258,7 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Time badge and Category
+                        // Time badge, Category and Running Now indicator
                         Row(
                           children: [
                             Container(
@@ -1898,6 +2294,33 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                                 color: AppColors.textSecondaryColor(context),
                               ),
                             ),
+                            if (isRunningNow) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.redAccent.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: Colors.redAccent.withOpacity(0.5), width: 1),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.fiber_manual_record, size: 7, color: Colors.redAccent),
+                                    SizedBox(width: 3),
+                                    Text(
+                                      'RUNNING NOW',
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.redAccent,
+                                        letterSpacing: 0.3,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                             const Spacer(),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
@@ -1938,6 +2361,186 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                             style: TextStyle(
                               fontSize: 12,
                               color: AppColors.textMutedColor(context),
+                            ),
+                          ),
+                        ],
+
+                        // Urgent Sub-Tasks list inside block
+                        if (subTasks.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF1E222A) : const Color(0xFFF7F8FA),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isDark ? Colors.grey[800]! : Colors.grey[300]!,
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(Icons.flash_on_rounded, size: 14, color: Colors.amber),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Urgent In-Block Tasks (${subTasks.where((s) => s.isCompleted).length}/${subTasks.length})',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: isDark ? Colors.amber[200] : Colors.amber[900],
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    InkWell(
+                                      onTap: () => _showAllocateUrgentTimeDialog(block),
+                                      borderRadius: BorderRadius.circular(4),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(Icons.add, size: 12, color: AppColors.primary),
+                                            Text(
+                                              'Add',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.bold,
+                                                color: isDark ? AppColors.accentCyan : AppColors.primary,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                ...subTasks.map((subTask) {
+                                  final isSubDone = subTask.isCompleted;
+                                  return Container(
+                                    margin: const EdgeInsets.only(top: 4),
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: isSubDone
+                                          ? (isDark ? Colors.green.withOpacity(0.08) : Colors.green.withOpacity(0.05))
+                                          : AppColors.surface(context),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        GestureDetector(
+                                          onTap: () => _toggleSubTask(subTask),
+                                          child: Icon(
+                                            isSubDone ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+                                            size: 16,
+                                            color: isSubDone ? AppColors.success : (isDark ? Colors.grey[400] : Colors.grey[600]),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            subTask.title,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              decoration: isSubDone ? TextDecoration.lineThrough : null,
+                                              color: isSubDone
+                                                  ? AppColors.textMutedColor(context)
+                                                  : AppColors.textPrimaryColor(context),
+                                            ),
+                                          ),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                          decoration: BoxDecoration(
+                                            color: Colors.amber.withOpacity(0.2),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: Text(
+                                            '⚡ ${subTask.durationMinutes}m',
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                              color: isDark ? Colors.amber[200] : Colors.amber[900],
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        IconButton(
+                                          icon: const Icon(Icons.play_circle_outline, size: 18),
+                                          color: AppColors.primary,
+                                          tooltip: 'Focus on this task',
+                                          visualDensity: VisualDensity.compact,
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                          onPressed: () => _startFocusForSubTask(subTask, block),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        IconButton(
+                                          icon: const Icon(Icons.close, size: 14),
+                                          color: AppColors.textMutedColor(context),
+                                          tooltip: 'Remove',
+                                          visualDensity: VisualDensity.compact,
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                          onPressed: () => _deleteSubTask(subTask),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }),
+                              ],
+                            ),
+                          ),
+                        ],
+
+                        // Quick banner if running now and no subtasks yet
+                        if (isRunningNow && subTasks.isEmpty) ...[
+                          const SizedBox(height: 8),
+                          InkWell(
+                            onTap: () => _showAllocateUrgentTimeDialog(block),
+                            borderRadius: BorderRadius.circular(10),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: Colors.amber.withOpacity(0.35)),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.flash_on, size: 16, color: Colors.amber),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      'Running now! Urgent work came up?',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: isDark ? Colors.amber[200] : Colors.amber[900],
+                                      ),
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: Colors.amber,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: const Text(
+                                      '+ Allocate Time',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ],
@@ -2001,6 +2604,29 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
                               color: isDark ? AppColors.accentCyan : AppColors.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Urgent Time Slot Allocation Button
+                  InkWell(
+                    onTap: () => _showAllocateUrgentTimeDialog(block),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.flash_on_rounded, size: 16, color: Colors.amber),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Urgent Slot',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.amber[300] : Colors.amber[800],
                             ),
                           ),
                         ],
