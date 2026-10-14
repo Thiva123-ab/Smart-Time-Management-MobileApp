@@ -6,6 +6,7 @@ import '../models/goal.dart';
 import '../models/focus_session.dart';
 import '../models/daily_score.dart';
 import '../models/time_block.dart';
+import '../models/time_sub_task.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -25,9 +26,25 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
+      onOpen: (db) async {
+        // Ensure time_sub_tasks table exists without affecting any existing tables or rows
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS time_sub_tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            blockId INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            durationMinutes INTEGER NOT NULL,
+            startTime TEXT,
+            endTime TEXT,
+            isCompleted INTEGER NOT NULL DEFAULT 0,
+            isUrgent INTEGER NOT NULL DEFAULT 1,
+            createdAt INTEGER
+          )
+        ''');
+      },
     );
   }
 
@@ -166,6 +183,20 @@ class DatabaseHelper {
         notes TEXT
       )
     ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS time_sub_tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        blockId INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        durationMinutes INTEGER NOT NULL,
+        startTime TEXT,
+        endTime TEXT,
+        isCompleted INTEGER NOT NULL DEFAULT 0,
+        isUrgent INTEGER NOT NULL DEFAULT 1,
+        createdAt INTEGER
+      )
+    ''');
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -181,6 +212,21 @@ class DatabaseHelper {
           durationMinutes INTEGER NOT NULL,
           isCompleted INTEGER NOT NULL,
           notes TEXT
+        )
+      ''');
+    }
+    if (oldVersion < 3) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS time_sub_tasks (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          blockId INTEGER NOT NULL,
+          title TEXT NOT NULL,
+          durationMinutes INTEGER NOT NULL,
+          startTime TEXT,
+          endTime TEXT,
+          isCompleted INTEGER NOT NULL DEFAULT 0,
+          isUrgent INTEGER NOT NULL DEFAULT 1,
+          createdAt INTEGER
         )
       ''');
     }
