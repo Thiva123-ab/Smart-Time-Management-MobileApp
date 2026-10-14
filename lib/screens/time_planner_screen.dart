@@ -1025,68 +1025,132 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
     final today = DateTime(now.year, now.month, now.day);
     final targetDate = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
     final isPastDate = targetDate.isBefore(today);
+    final isToday = targetDate.year == today.year && targetDate.month == today.month && targetDate.day == today.day;
 
     return Scaffold(
       backgroundColor: AppColors.background(context),
       appBar: AppBar(
-        title: Text(
-          'Time Planner & Schedule',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
-            color: AppColors.textPrimaryColor(context),
-          ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Time Planner & Schedule',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+                color: AppColors.textPrimaryColor(context),
+              ),
+            ),
+            Text(
+              isToday
+                  ? "Today's Schedule"
+                  : (isPastDate
+                      ? "Past Activity History"
+                      : "Upcoming Schedule"),
+              style: TextStyle(
+                fontSize: 11,
+                color: isToday
+                    ? AppColors.primary
+                    : (isPastDate ? Colors.amber : AppColors.accentCyan),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
         actions: [
+          if (!isToday)
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary.withOpacity(0.15),
+                  foregroundColor: AppColors.primary,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                icon: const Icon(Icons.today, size: 14),
+                label: const Text('Today', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                onPressed: () {
+                  setState(() => _selectedDate = DateTime.now());
+                  _loadBlocks();
+                  _scrollToSelectedDate();
+                },
+              ),
+            ),
           IconButton(
-            icon: const Icon(Icons.calendar_today_outlined),
-            tooltip: 'Pick Date',
+            icon: const Icon(Icons.calendar_month_outlined),
+            tooltip: 'Pick Any Date',
             onPressed: () async {
               final picked = await showDatePicker(
                 context: context,
-                initialDate: _selectedDate.isBefore(today) ? today : _selectedDate,
-                firstDate: today,
+                initialDate: _selectedDate,
+                firstDate: today.subtract(const Duration(days: 365)),
                 lastDate: today.add(const Duration(days: 365)),
               );
               if (picked != null) {
                 setState(() => _selectedDate = picked);
                 _loadBlocks();
+                _scrollToSelectedDate();
               }
             },
           ),
-          if (!isPastDate)
-            IconButton(
-              icon: const Icon(Icons.add_circle, color: AppColors.primary, size: 28),
-              tooltip: 'Add Time Block',
-              onPressed: () => _showAddOrEditDialog(),
-            ),
-          const SizedBox(width: 8),
+          IconButton(
+            icon: const Icon(Icons.add_circle, color: AppColors.primary, size: 28),
+            tooltip: isPastDate ? 'Log Past Activity' : 'Add Time Block',
+            onPressed: () => _showAddOrEditDialog(),
+          ),
+          const SizedBox(width: 4),
         ],
       ),
       body: SafeArea(
         child: Column(
           children: [
-            // Date Selector Strip
+            // Date Selector Strip (supports 15 days in past + today + 15 days in future)
             _buildDateStrip(),
 
             if (isPastDate)
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                color: Colors.amber.withOpacity(0.15),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withOpacity(0.12),
+                  border: Border(bottom: BorderSide(color: Colors.amber.withOpacity(0.25))),
+                ),
                 child: Row(
                   children: [
-                    const Icon(Icons.info_outline, size: 18, color: Colors.amber),
-                    const SizedBox(width: 8),
+                    const Icon(Icons.history_rounded, size: 20, color: Colors.amber),
+                    const SizedBox(width: 10),
                     Expanded(
-                      child: Text(
-                        'Past Date (Read-Only) - New scheduling is disabled for past days.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: isDark ? Colors.amber[200] : Colors.amber[900],
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Activity History: ${DateFormat('EEEE, MMM d, yyyy').format(_selectedDate)}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.amber[200] : Colors.amber[900],
+                            ),
+                          ),
+                          Text(
+                            'All activities, commutes, and sessions for this date are shown below.',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: isDark ? Colors.amber[100] : Colors.amber[800],
+                            ),
+                          ),
+                        ],
                       ),
+                    ),
+                    TextButton.icon(
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        foregroundColor: isDark ? Colors.amber[200] : Colors.amber[900],
+                      ),
+                      icon: const Icon(Icons.add, size: 14),
+                      label: const Text('Log Activity', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                      onPressed: () => _showAddOrEditDialog(),
                     ),
                   ],
                 ),
@@ -1111,17 +1175,20 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                           const SizedBox(height: 18),
 
                           // Live Transport Commute Tracker Card
-                          _buildTransportTrackerCard(isDark),
-                          const SizedBox(height: 18),
+                          // Always show when tracking is active, or when viewing today
+                          if (_isTrackingTransport || isToday) ...[
+                            _buildTransportTrackerCard(isDark),
+                            const SizedBox(height: 18),
+                          ],
 
-                          // Section Title
+                          // Section Title: Scheduled Time Blocks
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
-                                'Scheduled Time Blocks',
+                                isPastDate ? 'Recorded Time Blocks & Activities' : 'Scheduled Time Blocks',
                                 style: TextStyle(
-                                  fontSize: 18,
+                                  fontSize: 17,
                                   fontWeight: FontWeight.bold,
                                   color: AppColors.textPrimaryColor(context),
                                 ),
@@ -1143,6 +1210,9 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                           else
                             ..._blocks.map((block) => _buildTimeBlockCard(block, isDark)),
 
+                          // Focus Sessions on this date (Deep Work & Pomodoros)
+                          _buildFocusSessionsSection(isDark),
+
                           const SizedBox(height: 40),
                         ],
                       ),
@@ -1151,44 +1221,56 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
           ],
         ),
       ),
-      floatingActionButton: isPastDate
-          ? null
-          : FloatingActionButton.extended(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              icon: const Icon(Icons.add),
-              label: const Text('Add Time Block', style: TextStyle(fontWeight: FontWeight.bold)),
-              onPressed: () => _showAddOrEditDialog(),
-            ),
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: isPastDate ? Colors.amber.shade800 : AppColors.primary,
+        foregroundColor: Colors.white,
+        icon: Icon(isPastDate ? Icons.history_edu_rounded : Icons.add),
+        label: Text(
+          isPastDate ? 'Log Past Activity' : 'Add Time Block',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        onPressed: () => _showAddOrEditDialog(),
+      ),
     );
   }
 
   Widget _buildDateStrip() {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
+    final startDate = today.subtract(const Duration(days: 15));
 
     return Container(
-      height: 78,
+      height: 80,
       padding: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
         color: AppColors.surface(context),
         border: Border(bottom: BorderSide(color: AppColors.cardBorder(context), width: 0.5)),
       ),
       child: ListView.builder(
+        controller: _dateScrollController,
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: 14,
+        itemCount: 31,
         itemBuilder: (ctx, index) {
-          final day = today.add(Duration(days: index));
+          final day = startDate.add(Duration(days: index));
           final isSelected = day.year == _selectedDate.year &&
               day.month == _selectedDate.month &&
               day.day == _selectedDate.day;
           final isCurrentDay = day.year == now.year && day.month == now.month && day.day == now.day;
+          final isPast = day.isBefore(today);
+
+          String dayLabel = DateFormat('E').format(day);
+          if (isCurrentDay) {
+            dayLabel = 'Today';
+          } else if (day.year == today.year && day.month == today.month && day.day == today.day - 1) {
+            dayLabel = 'Yest.';
+          }
 
           return GestureDetector(
             onTap: () {
               setState(() => _selectedDate = day);
               _loadBlocks();
+              _scrollToSelectedDate();
             },
             child: Container(
               width: 58,
@@ -1196,23 +1278,31 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
               decoration: BoxDecoration(
                 color: isSelected
                     ? AppColors.primary
-                    : (isCurrentDay ? AppColors.surfaceVariant(context) : Colors.transparent),
+                    : (isCurrentDay
+                        ? AppColors.surfaceVariant(context)
+                        : (isPast
+                            ? (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E1E2A) : const Color(0xFFF3F4F6))
+                            : Colors.transparent)),
                 borderRadius: BorderRadius.circular(16),
-                border: isCurrentDay && !isSelected
-                    ? Border.all(color: AppColors.primary.withOpacity(0.5), width: 1.5)
-                    : null,
+                border: isSelected
+                    ? Border.all(color: AppColors.primary, width: 2)
+                    : (isCurrentDay
+                        ? Border.all(color: AppColors.primary.withOpacity(0.6), width: 1.5)
+                        : Border.all(color: AppColors.cardBorder(context).withOpacity(0.5), width: 0.8)),
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    DateFormat('E').format(day),
+                    dayLabel,
                     style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 11,
+                      fontWeight: (isSelected || isCurrentDay) ? FontWeight.bold : FontWeight.w600,
                       color: isSelected
-                          ? Colors.white70
-                          : AppColors.textSecondaryColor(context),
+                          ? Colors.white
+                          : (isCurrentDay
+                              ? AppColors.primary
+                              : AppColors.textSecondaryColor(context)),
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -1226,12 +1316,137 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                           : AppColors.textPrimaryColor(context),
                     ),
                   ),
+                  if (day.day == 1)
+                    Text(
+                      DateFormat('MMM').format(day),
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        color: isSelected ? Colors.white70 : AppColors.accentCyan,
+                      ),
+                    ),
                 ],
               ),
             ),
           );
         },
       ),
+    );
+  }
+
+  Widget _buildFocusSessionsSection(bool isDark) {
+    if (_focusSessions.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 20),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.timer_outlined, size: 20, color: AppColors.accentCyan),
+                const SizedBox(width: 8),
+                Text(
+                  'Focus Sessions on this Day',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimaryColor(context),
+                  ),
+                ),
+              ],
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.accentCyan.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '${_focusSessions.length} Sessions',
+                style: const TextStyle(
+                  color: AppColors.accentCyan,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        ..._focusSessions.map((session) {
+          final startTimeStr = DateFormat('hh:mm a').format(DateTime.fromMillisecondsSinceEpoch(session.startTime));
+          final endTimeStr = DateFormat('hh:mm a').format(DateTime.fromMillisecondsSinceEpoch(session.endTime));
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.surface(context),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.cardBorder(context)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: (session.completed ? AppColors.success : Colors.orange).withOpacity(0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    session.completed ? Icons.check_circle_outline : Icons.timelapse,
+                    color: session.completed ? AppColors.success : Colors.orange,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        session.taskName,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimaryColor(context),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '$startTimeStr - $endTimeStr • ${session.durationMinutes} mins',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondaryColor(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (session.distractionCount > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '${session.distractionCount} dist.',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Colors.orange,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        }),
+      ],
     );
   }
 
