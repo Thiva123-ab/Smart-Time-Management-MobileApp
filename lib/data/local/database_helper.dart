@@ -7,6 +7,7 @@ import '../models/focus_session.dart';
 import '../models/daily_score.dart';
 import '../models/time_block.dart';
 import '../models/time_sub_task.dart';
+import '../models/daily_note.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -26,7 +27,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
       onOpen: (db) async {
@@ -42,6 +43,21 @@ class DatabaseHelper {
             isCompleted INTEGER NOT NULL DEFAULT 0,
             isUrgent INTEGER NOT NULL DEFAULT 1,
             createdAt INTEGER
+          )
+        ''');
+
+        // Ensure daily_notes table exists for day-to-day notes and ideas
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS daily_notes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL,
+            category TEXT NOT NULL DEFAULT 'Idea',
+            colorHex TEXT,
+            isPinned INTEGER NOT NULL DEFAULT 0,
+            createdAt INTEGER,
+            updatedAt INTEGER
           )
         ''');
       },
@@ -197,6 +213,20 @@ class DatabaseHelper {
         createdAt INTEGER
       )
     ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS daily_notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        category TEXT NOT NULL DEFAULT 'Idea',
+        colorHex TEXT,
+        isPinned INTEGER NOT NULL DEFAULT 0,
+        createdAt INTEGER,
+        updatedAt INTEGER
+      )
+    ''');
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -227,6 +257,21 @@ class DatabaseHelper {
           isCompleted INTEGER NOT NULL DEFAULT 0,
           isUrgent INTEGER NOT NULL DEFAULT 1,
           createdAt INTEGER
+        )
+      ''');
+    }
+    if (oldVersion < 4) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS daily_notes (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          date TEXT NOT NULL,
+          title TEXT NOT NULL,
+          content TEXT NOT NULL,
+          category TEXT NOT NULL DEFAULT 'Idea',
+          colorHex TEXT,
+          isPinned INTEGER NOT NULL DEFAULT 0,
+          createdAt INTEGER,
+          updatedAt INTEGER
         )
       ''');
     }
@@ -480,6 +525,57 @@ class DatabaseHelper {
       map.putIfAbsent(subTask.blockId, () => []).add(subTask);
     }
     return map;
+  }
+
+  // Daily Notes & Ideas
+  Future<int> insertDailyNote(DailyNote note) async {
+    final db = await instance.database;
+    return await db.insert('daily_notes', note.toMap());
+  }
+
+  Future<int> updateDailyNote(DailyNote note) async {
+    final db = await instance.database;
+    return await db.update(
+      'daily_notes',
+      note.toMap(),
+      where: 'id = ?',
+      whereArgs: [note.id],
+    );
+  }
+
+  Future<int> deleteDailyNote(int id) async {
+    final db = await instance.database;
+    return await db.delete('daily_notes', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> togglePinDailyNote(int id, bool isPinned) async {
+    final db = await instance.database;
+    await db.update(
+      'daily_notes',
+      {'isPinned': isPinned ? 1 : 0},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<List<DailyNote>> getDailyNotesForDate(String date) async {
+    final db = await instance.database;
+    final result = await db.query(
+      'daily_notes',
+      where: 'date = ?',
+      whereArgs: [date],
+      orderBy: 'isPinned DESC, createdAt DESC',
+    );
+    return result.map((json) => DailyNote.fromMap(json)).toList();
+  }
+
+  Future<List<DailyNote>> getAllDailyNotes() async {
+    final db = await instance.database;
+    final result = await db.query(
+      'daily_notes',
+      orderBy: 'date DESC, isPinned DESC, createdAt DESC',
+    );
+    return result.map((json) => DailyNote.fromMap(json)).toList();
   }
 
   // Clear data

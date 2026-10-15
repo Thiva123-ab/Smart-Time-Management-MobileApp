@@ -5,6 +5,7 @@ import '../theme/app_theme.dart';
 import '../data/local/database_helper.dart';
 import '../data/models/time_block.dart';
 import '../data/models/time_sub_task.dart';
+import '../data/models/daily_note.dart';
 import '../data/models/focus_session.dart';
 import '../services/usage_tracking_service.dart';
 import '../services/schedule_notification_service.dart';
@@ -22,6 +23,7 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
   DateTime _selectedDate = DateTime.now();
   List<TimeBlock> _blocks = [];
   Map<int, List<TimeSubTask>> _subTasks = {};
+  List<DailyNote> _dailyNotes = [];
   List<FocusSession> _focusSessions = [];
   bool _isLoading = true;
   bool _hasNotificationPermission = true;
@@ -150,6 +152,7 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
     final blocks = await DatabaseHelper.instance.getTimeBlocksForDate(dateStr);
     final sessions = await DatabaseHelper.instance.getFocusSessionsForDate(dateStr);
     final subTasks = await DatabaseHelper.instance.getSubTasksForDate(dateStr);
+    final notes = await DatabaseHelper.instance.getDailyNotesForDate(dateStr);
 
     // Smart priority sorting:
     // 1. Incomplete/Pending tasks FIRST (sorted by start time)
@@ -170,6 +173,7 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
       setState(() {
         _blocks = blocks;
         _subTasks = subTasks;
+        _dailyNotes = notes;
         _focusSessions = sessions;
         _isLoading = false;
       });
