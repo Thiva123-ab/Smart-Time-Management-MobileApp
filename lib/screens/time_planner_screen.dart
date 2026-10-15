@@ -1503,6 +1503,11 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
             },
           ),
           IconButton(
+            icon: const Icon(Icons.lightbulb_outline_rounded, color: Colors.amber, size: 26),
+            tooltip: 'Add Note / Idea',
+            onPressed: () => _showAddOrEditNoteDialog(),
+          ),
+          IconButton(
             icon: const Icon(Icons.add_circle, color: AppColors.primary, size: 28),
             tooltip: isPastDate ? 'Log Past Activity' : 'Add Time Block',
             onPressed: () => _showAddOrEditDialog(),
@@ -1616,6 +1621,9 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                             _buildEmptyState(isDark)
                           else
                             ..._blocks.map((block) => _buildTimeBlockCard(block, isDark)),
+
+                          // Day Notes & Ideas Section
+                          _buildDailyNotesSection(isDark),
 
                           // Focus Sessions on this date (Deep Work & Pomodoros)
                           _buildFocusSessionsSection(isDark),
@@ -2737,4 +2745,639 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
       ),
     );
   }
+
+  Color _hexToColor(String? hexString) {
+    if (hexString == null) return const Color(0xFF6C5CE7);
+    try {
+      final buffer = StringBuffer();
+      if (hexString.length == 6 || hexString.length == 7) buffer.write('ff');
+      buffer.write(hexString.replaceFirst('#', ''));
+      return Color(int.parse(buffer.toString(), radix: 16));
+    } catch (_) {
+      return const Color(0xFF6C5CE7);
+    }
+  }
+
+  IconData _getNoteCategoryIcon(String category) {
+    switch (category.toLowerCase()) {
+      case 'idea':
+        return Icons.lightbulb_outline_rounded;
+      case 'important':
+        return Icons.push_pin_outlined;
+      case 'reflection':
+        return Icons.psychology_outlined;
+      case 'todo':
+        return Icons.checklist_rounded;
+      default:
+        return Icons.edit_note_rounded;
+    }
+  }
+
+  Future<void> _deleteDailyNote(DailyNote note) async {
+    if (note.id == null) return;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Note / Idea?'),
+        content: Text('Are you sure you want to delete "${note.title}"?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      await DatabaseHelper.instance.deleteDailyNote(note.id!);
+      _loadBlocks();
+    }
+  }
+
+  void _showAddOrEditNoteDialog({DailyNote? noteToEdit}) {
+    final titleController = TextEditingController(text: noteToEdit?.title ?? '');
+    final contentController = TextEditingController(text: noteToEdit?.content ?? '');
+    String selectedCategory = noteToEdit?.category ?? 'Idea';
+    String selectedColorHex = noteToEdit?.colorHex ?? '#FFD166';
+    bool isPinned = noteToEdit?.isPinned ?? false;
+
+    final categories = [
+      {'name': 'Idea', 'icon': Icons.lightbulb_outline_rounded, 'color': '#FFD166'},
+      {'name': 'Note', 'icon': Icons.edit_note_rounded, 'color': '#06D6A0'},
+      {'name': 'Important', 'icon': Icons.push_pin_outlined, 'color': '#EF476F'},
+      {'name': 'Reflection', 'icon': Icons.psychology_outlined, 'color': '#7209B7'},
+      {'name': 'Todo', 'icon': Icons.checklist_rounded, 'color': '#118AB2'},
+    ];
+
+    final colorOptions = [
+      '#FFD166', // Amber / Idea
+      '#06D6A0', // Emerald / Note
+      '#118AB2', // Ocean Cyan
+      '#EF476F', // Coral / Important
+      '#7209B7', // Purple / Deep Reflection
+      '#FF8C00', // Orange
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+
+          return Container(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+              top: 20,
+              left: 20,
+              right: 20,
+            ),
+            decoration: BoxDecoration(
+              color: AppColors.surface(context),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          noteToEdit == null ? Icons.lightbulb_rounded : Icons.edit_note_rounded,
+                          color: AppColors.primary,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              noteToEdit == null ? 'Add Day Note or Idea' : 'Edit Note / Idea',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textPrimaryColor(context),
+                              ),
+                            ),
+                            Text(
+                              DateFormat('EEEE, MMM d, yyyy').format(_selectedDate),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondaryColor(context),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: const Icon(Icons.close),
+                        color: AppColors.textMutedColor(context),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Category selector chips
+                  Text(
+                    'Category / Type:',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondaryColor(context),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: categories.map((cat) {
+                      final isSelected = selectedCategory == cat['name'];
+                      return ChoiceChip(
+                        avatar: Icon(
+                          cat['icon'] as IconData,
+                          size: 16,
+                          color: isSelected ? Colors.black : AppColors.primary,
+                        ),
+                        label: Text(cat['name'] as String),
+                        selected: isSelected,
+                        selectedColor: AppColors.accentCyan,
+                        backgroundColor: AppColors.surfaceVariant(context),
+                        labelStyle: TextStyle(
+                          color: isSelected ? Colors.black : AppColors.textPrimaryColor(context),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                        onSelected: (val) {
+                          if (val) {
+                            setSheetState(() {
+                              selectedCategory = cat['name'] as String;
+                              selectedColorHex = cat['color'] as String;
+                            });
+                          }
+                        },
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Title TextField
+                  Text(
+                    'Title or Topic',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondaryColor(context),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: titleController,
+                    style: TextStyle(color: AppColors.textPrimaryColor(context)),
+                    decoration: InputDecoration(
+                      hintText: 'e.g., Creative app feature idea, Day reflection...',
+                      hintStyle: TextStyle(color: AppColors.textMutedColor(context)),
+                      filled: true,
+                      fillColor: AppColors.surfaceVariant(context),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Content multiline TextField
+                  Text(
+                    'Note / Idea Details',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondaryColor(context),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: contentController,
+                    maxLines: 4,
+                    minLines: 3,
+                    style: TextStyle(color: AppColors.textPrimaryColor(context)),
+                    decoration: InputDecoration(
+                      hintText: 'Jot down thoughts, notes, bullet points, or reflections for this day...',
+                      hintStyle: TextStyle(color: AppColors.textMutedColor(context)),
+                      filled: true,
+                      fillColor: AppColors.surfaceVariant(context),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Color and Pin row
+                  Row(
+                    children: [
+                      Text(
+                        'Tag Color: ',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondaryColor(context),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ...colorOptions.map((hex) {
+                        final color = _hexToColor(hex);
+                        final isSel = selectedColorHex == hex;
+                        return GestureDetector(
+                          onTap: () => setSheetState(() => selectedColorHex = hex),
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                            width: 26,
+                            height: 26,
+                            decoration: BoxDecoration(
+                              color: color,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: isSel ? Colors.white : Colors.transparent,
+                                width: 2.5,
+                              ),
+                              boxShadow: isSel
+                                  ? [
+                                      BoxShadow(
+                                        color: color.withValues(alpha: 0.5),
+                                        blurRadius: 6,
+                                        spreadRadius: 1,
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: isSel
+                                ? const Icon(Icons.check, size: 14, color: Colors.black87)
+                                : null,
+                          ),
+                        );
+                      }),
+                      const Spacer(),
+                      // Pin toggle
+                      InkWell(
+                        onTap: () => setSheetState(() => isPinned = !isPinned),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                                size: 18,
+                                color: isPinned ? Colors.amber : AppColors.textMutedColor(context),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                isPinned ? 'Pinned' : 'Pin',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: isPinned ? Colors.amber : AppColors.textMutedColor(context),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 22),
+
+                  // Save Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        elevation: 0,
+                      ),
+                      icon: const Icon(Icons.check_circle_rounded),
+                      label: Text(
+                        noteToEdit == null ? 'Save Note for This Day' : 'Update Note',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                      onPressed: () async {
+                        final title = titleController.text.trim();
+                        final content = contentController.text.trim();
+                        if (title.isEmpty && content.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Please enter a note title or content')),
+                          );
+                          return;
+                        }
+
+                        final dateStr = _dateString(_selectedDate);
+                        if (noteToEdit == null) {
+                          final newNote = DailyNote(
+                            date: dateStr,
+                            title: title.isEmpty ? 'Quick Note' : title,
+                            content: content,
+                            category: selectedCategory,
+                            colorHex: selectedColorHex,
+                            isPinned: isPinned,
+                          );
+                          await DatabaseHelper.instance.insertDailyNote(newNote);
+                        } else {
+                          final updated = noteToEdit.copyWith(
+                            title: title.isEmpty ? 'Quick Note' : title,
+                            content: content,
+                            category: selectedCategory,
+                            colorHex: selectedColorHex,
+                            isPinned: isPinned,
+                            updatedAt: DateTime.now().millisecondsSinceEpoch,
+                          );
+                          await DatabaseHelper.instance.updateDailyNote(updated);
+                        }
+
+                        if (mounted) {
+                          Navigator.pop(ctx);
+                          _loadBlocks();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                noteToEdit == null ? '💡 Day Note & Idea saved!' : '✅ Note updated!',
+                                style: const TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                              backgroundColor: AppColors.success,
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildDailyNotesSection(bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 20),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.lightbulb_rounded, size: 20, color: Colors.amber),
+                const SizedBox(width: 8),
+                Text(
+                  'Day Notes & Ideas',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimaryColor(context),
+                  ),
+                ),
+                if (_dailyNotes.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '${_dailyNotes.length}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.amber[200] : Colors.amber[900],
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            TextButton.icon(
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              ),
+              icon: const Icon(Icons.add, size: 16, color: AppColors.primary),
+              label: Text(
+                'Add Note/Idea',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? AppColors.accentCyan : AppColors.primary,
+                ),
+              ),
+              onPressed: () => _showAddOrEditNoteDialog(),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+
+        if (_dailyNotes.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.surface(context),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: AppColors.cardBorder(context)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.tips_and_updates_outlined, color: Colors.amber, size: 22),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'No Notes or Ideas for this day yet',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimaryColor(context),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Record your daily insights, quick ideas, key thoughts, or reflections.',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textMutedColor(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add_circle, color: AppColors.primary, size: 28),
+                  tooltip: 'Add Note',
+                  onPressed: () => _showAddOrEditNoteDialog(),
+                ),
+              ],
+            ),
+          )
+        else
+          ..._dailyNotes.map((note) => _buildNoteCard(note, isDark)),
+      ],
+    );
+  }
+
+  Widget _buildNoteCard(DailyNote note, bool isDark) {
+    final noteColor = _hexToColor(note.colorHex);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surface(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: note.isPinned ? Colors.amber.withValues(alpha: 0.6) : AppColors.cardBorder(context),
+          width: note.isPinned ? 1.5 : 1.0,
+        ),
+        boxShadow: note.isPinned
+            ? [
+                BoxShadow(
+                  color: Colors.amber.withValues(alpha: 0.12),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ]
+            : null,
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => _showAddOrEditNoteDialog(noteToEdit: note),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: noteColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: noteColor.withValues(alpha: 0.3), width: 0.8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _getNoteCategoryIcon(note.category),
+                          size: 13,
+                          color: noteColor,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          note.category,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: noteColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Spacer(),
+                  if (note.isPinned)
+                    Container(
+                      margin: const EdgeInsets.only(right: 6),
+                      child: const Icon(Icons.push_pin, size: 16, color: Colors.amber),
+                    ),
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    color: AppColors.textMutedColor(context),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    tooltip: 'Edit',
+                    onPressed: () => _showAddOrEditNoteDialog(noteToEdit: note),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 16),
+                    color: AppColors.danger.withValues(alpha: 0.8),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    tooltip: 'Delete',
+                    onPressed: () => _deleteDailyNote(note),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                note.title,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimaryColor(context),
+                ),
+              ),
+              if (note.content.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  note.content,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondaryColor(context),
+                    height: 1.35,
+                  ),
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
+
