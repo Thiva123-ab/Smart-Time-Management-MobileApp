@@ -2825,8 +2825,6 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
       backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheetState) {
-          final isDark = Theme.of(context).brightness == Brightness.dark;
-
           return Container(
             padding: EdgeInsets.only(
               bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
@@ -3124,8 +3122,10 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                           await DatabaseHelper.instance.updateDailyNote(updated);
                         }
 
-                        if (mounted) {
+                        if (ctx.mounted) {
                           Navigator.pop(ctx);
+                        }
+                        if (mounted) {
                           _loadBlocks();
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(

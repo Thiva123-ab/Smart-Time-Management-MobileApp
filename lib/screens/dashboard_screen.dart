@@ -79,6 +79,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final goalPercent = goals.isNotEmpty ? (completedGoals * 100) ~/ goals.length : 80;
 
     final todayBlocks = await db.getTimeBlocksForDate(today);
+    final todayNotes = await db.getDailyNotesForDate(today);
     final userProfile = await UserProfile.load();
 
     final scoreRes = ProductivityScoreEngine.calculateScore(
@@ -92,6 +93,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _apps = usages;
       _goals = goals;
       _todayBlocks = todayBlocks;
+      _todayNotes = todayNotes;
       _userProfile = userProfile;
       _totalMinutes = total;
       _productiveMinutes = prod;
@@ -449,6 +451,85 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ..._todayBlocks.take(3).map((b) => _scheduleBlockItem(b)),
               const SizedBox(height: 22),
 
+              // 4.8. Today's Notes & Ideas
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.lightbulb_rounded, color: Colors.amber, size: 20),
+                      const SizedBox(width: 8),
+                      Text("Today's Notes & Ideas", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimaryColor(context))),
+                    ],
+                  ),
+                  TextButton.icon(
+                    icon: const Icon(Icons.arrow_forward, size: 14),
+                    label: Text(_todayNotes.isEmpty ? '+ Add Note' : 'View All', style: TextStyle(color: isDark ? AppColors.accentCyan : AppColors.primary)),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const TimePlannerScreen()),
+                      ).then((_) => _loadData());
+                    },
+                  ),
+                ],
+              ),
+              if (_todayNotes.isEmpty)
+                InkWell(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const TimePlannerScreen()),
+                    ).then((_) => _loadData());
+                  },
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface(context),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.cardBorder(context)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.withValues(alpha: 0.12),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.tips_and_updates_outlined, color: Colors.amber, size: 22),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Jot Down Today\'s Ideas & Notes',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textPrimaryColor(context),
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Capture thoughts, daily reflections, or creative sparks',
+                                style: TextStyle(color: AppColors.textMutedColor(context), fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.add_circle_outline, color: Colors.amber, size: 22),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                ..._todayNotes.take(3).map((n) => _noteDashboardItem(n)),
+              const SizedBox(height: 22),
+
               // 5. Today's Goals
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -643,4 +724,95 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
+
+  Widget _noteDashboardItem(DailyNote note) {
+    Color tagColor = const Color(0xFF6C5CE7);
+    if (note.colorHex != null) {
+      try {
+        final buffer = StringBuffer();
+        if (note.colorHex!.length == 6 || note.colorHex!.length == 7) buffer.write('ff');
+        buffer.write(note.colorHex!.replaceFirst('#', ''));
+        tagColor = Color(int.parse(buffer.toString(), radix: 16));
+      } catch (_) {}
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface(context),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: note.isPinned ? Colors.amber.withValues(alpha: 0.6) : AppColors.cardBorder(context),
+        ),
+      ),
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const TimePlannerScreen()),
+          ).then((_) => _loadData());
+        },
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              decoration: BoxDecoration(
+                color: tagColor.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                note.category,
+                style: TextStyle(
+                  color: tagColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 11,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          note.title,
+                          style: TextStyle(
+                            color: AppColors.textPrimaryColor(context),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (note.isPinned)
+                        const Icon(Icons.push_pin, size: 14, color: Colors.amber),
+                    ],
+                  ),
+                  if (note.content.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      note.content,
+                      style: TextStyle(
+                        color: AppColors.textSecondaryColor(context),
+                        fontSize: 11,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
+
