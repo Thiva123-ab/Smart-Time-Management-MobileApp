@@ -735,8 +735,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _appItem(AppUsage app) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),

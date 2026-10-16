@@ -196,6 +196,7 @@ I am ready to analyze your habits, build personalized daily schedules, or provid
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
+            onPressed: () async {
               final prefs = await SharedPreferences.getInstance();
               final key = controller.text.trim();
               await prefs.setString('gemini_api_key', key);
