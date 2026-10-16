@@ -14,6 +14,7 @@ import '../data/models/user_profile.dart';
 import 'time_planner_screen.dart';
 import 'focus_screen.dart';
 import 'profile_screen.dart';
+import 'ai_assistant_screen.dart';
 import '../widgets/app_icon_widget.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -328,6 +329,119 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       style: TextStyle(color: AppColors.textSecondaryColor(context), fontSize: 12),
                     ),
                   ],
+                ),
+              ),
+              const SizedBox(height: 18),
+
+              // AI Productivity Coach Banner
+              InkWell(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const AiAssistantScreen()),
+                  ).then((_) => _loadData());
+                },
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface(context),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: AppColors.primary.withValues(alpha: 0.35),
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.08),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [AppColors.primary, AppColors.accentPink],
+                          ),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.auto_awesome, color: Colors.white, size: 20),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  'AI Productivity Coach',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    color: AppColors.textPrimaryColor(context),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.success.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: const Text(
+                                    'ACTIVE',
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.success,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              _score.advice.isNotEmpty ? _score.advice : 'Tap to analyze daily habits & get smart advice',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textSecondaryColor(context),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            Text(
+                              'Chat',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                            SizedBox(width: 2),
+                            Icon(Icons.chevron_right_rounded, color: AppColors.primary, size: 16),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 18),
