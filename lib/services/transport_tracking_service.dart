@@ -18,6 +18,7 @@ class TransportTrackingService extends ChangeNotifier {
   DateTime? _startTime;
   String _title = 'Transport / Commute';
   bool _isInitialized = false;
+  Timer? _ticker;
 
   bool get isTracking => _isTracking;
   DateTime? get startTime => _startTime;
@@ -33,18 +34,33 @@ class TransportTrackingService extends ChangeNotifier {
     return diff > 0 ? diff : 0;
   }
 
+  void _startInternalTicker() {
+    _ticker?.cancel();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      notifyListeners();
+    });
+  }
+
+  void _stopInternalTicker() {
+    _ticker?.cancel();
+    _ticker = null;
+  }
+
   /// Initialize service state from SharedPreferences on app launch or screen open.
   Future<void> init() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      await prefs.reload();
       _isTracking = prefs.getBool(_prefKeyIsTracking) ?? false;
       final startMs = prefs.getInt(_prefKeyStartTime);
       if (_isTracking && startMs != null) {
         _startTime = DateTime.fromMillisecondsSinceEpoch(startMs);
         _title = prefs.getString(_prefKeyTitle) ?? 'Transport / Commute';
+        _startInternalTicker();
       } else {
         _isTracking = false;
         _startTime = null;
+        _stopInternalTicker();
       }
       _isInitialized = true;
       notifyListeners();
@@ -58,6 +74,7 @@ class TransportTrackingService extends ChangeNotifier {
     _isTracking = true;
     _startTime = DateTime.now();
     _title = title;
+    _startInternalTicker();
 
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -119,6 +136,7 @@ class TransportTrackingService extends ChangeNotifier {
     _isTracking = false;
     _startTime = null;
     _title = 'Transport / Commute';
+    _stopInternalTicker();
 
     try {
       final prefs = await SharedPreferences.getInstance();

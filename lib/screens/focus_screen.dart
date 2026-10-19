@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../data/local/database_helper.dart';
 import '../data/models/focus_session.dart';
 import '../domain/pomodoro_engine.dart';
 import '../services/usage_tracking_service.dart';
+import '../services/urgent_task_tracking_service.dart';
 
 class FocusScreen extends StatefulWidget {
   final String? initialTask;
@@ -244,6 +246,239 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
     );
   }
 
+  void _startUrgentInterruption() async {
+    // Automatically pause active focus session so progress is safely preserved
+    if (_isFocusActive && !_isFocusPaused) {
+      await _pauseFocusSession();
+    }
+    if (_pomodoro.isRunning) {
+      _pausePomodoro();
+    }
+
+    final currentTaskName = _taskController.text.trim().isNotEmpty
+        ? _taskController.text.trim()
+        : 'Deep Work';
+
+    final textCtrl = TextEditingController(text: 'Urgent Errand');
+
+    if (!mounted) return;
+
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final presets = ['Urgent Call', 'Emergency Errand', 'Family Matter', 'Quick Review', 'Urgent Fix'];
+        return Container(
+          padding: EdgeInsets.only(
+            top: 20,
+            left: 20,
+            right: 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+          ),
+          decoration: BoxDecoration(
+            color: AppColors.surface(context),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.flash_on_rounded, color: Colors.amber, size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Start Urgent Task Timer',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimaryColor(context),
+                          ),
+                        ),
+                        Text(
+                          'Interrupted while working on: "$currentTaskName"',
+                          style: TextStyle(fontSize: 12, color: AppColors.textSecondaryColor(context)),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: textCtrl,
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: 'Urgent Task / Errand Title',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  prefixIcon: const Icon(Icons.edit, color: Colors.amber),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: presets.map((p) => ActionChip(
+                  label: Text(p, style: const TextStyle(fontSize: 12)),
+                  avatar: const Icon(Icons.flash_on, size: 14, color: Colors.amber),
+                  onPressed: () => textCtrl.text = p,
+                )).toList(),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.amber.shade700,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  icon: const Icon(Icons.play_arrow),
+                  label: const Text('Start Urgent Stopwatch Now', style: TextStyle(fontWeight: FontWeight.bold)),
+                  onPressed: () => Navigator.pop(ctx, textCtrl.text.trim()),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (selected != null && selected.isNotEmpty) {
+      await UrgentTaskTrackingService.instance.startTracking(
+        title: selected,
+        parentTaskName: currentTaskName,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('⚡ Urgent timer running: "$selected". Original task is paused!'),
+            backgroundColor: Colors.amber.shade800,
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _buildUrgentTrackingBanner(bool isDark) {
+    return Consumer<UrgentTaskTrackingService>(
+      builder: (ctx, urgentService, _) {
+        if (!urgentService.isTracking) return const SizedBox.shrink();
+        final elapsedSec = urgentService.currentElapsedSeconds;
+        final h = elapsedSec ~/ 3600;
+        final m = (elapsedSec % 3600) ~/ 60;
+        final s = elapsedSec % 60;
+        final timeStr = h > 0
+            ? '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}'
+            : '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+
+        return Container(
+          margin: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.amber.withOpacity(isDark ? 0.18 : 0.12),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.amber.shade700, width: 1.5),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade700,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.flash_on_rounded, color: Colors.white, size: 18),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            urgentService.title,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              color: isDark ? Colors.amber[200] : Colors.amber[900],
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                          decoration: BoxDecoration(color: Colors.redAccent, borderRadius: BorderRadius.circular(4)),
+                          child: const Text('LIVE', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      'Running: $timeStr • Original task paused',
+                      style: TextStyle(fontSize: 11, color: AppColors.textSecondaryColor(context)),
+                    ),
+                  ],
+                ),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.amber.shade700,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  minimumSize: const Size(0, 36),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  elevation: 0,
+                ),
+                onPressed: () async {
+                  final block = await urgentService.stopAndSaveTracking();
+                  if (ctx.mounted && block != null) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      SnackBar(
+                        content: Text('✅ Urgent task completed: ${block.durationMinutes} mins logged!'),
+                        backgroundColor: AppColors.success,
+                      ),
+                    );
+                  }
+                },
+                child: const Text('Stop & Save', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   // Pomodoro Handlers
   void _startPomodoro() {
     _pomodoro.start();
@@ -356,6 +591,9 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
                   ],
                 ),
               ),
+
+              // Live Urgent Tracking Banner
+              _buildUrgentTrackingBanner(isDark),
 
               // Tab Bar
               TabBar(
@@ -614,6 +852,22 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
                   ),
                 ],
               ],
+            ),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.amber.shade700,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  elevation: 0,
+                ),
+                onPressed: _startUrgentInterruption,
+                icon: const Icon(Icons.flash_on_rounded, size: 20),
+                label: const Text('Urgent Work Came Up? Start Urgent Timer', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              ),
             ),
           ],
         ],

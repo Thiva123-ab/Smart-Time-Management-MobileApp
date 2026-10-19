@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../data/local/database_helper.dart';
@@ -10,6 +11,7 @@ import '../domain/app_category_manager.dart';
 import '../domain/productivity_score_engine.dart';
 import '../services/usage_tracking_service.dart';
 import '../services/transport_tracking_service.dart';
+import '../services/urgent_task_tracking_service.dart';
 import '../data/models/user_profile.dart';
 import 'time_planner_screen.dart';
 import 'focus_screen.dart';
@@ -256,6 +258,102 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ).then((_) => _loadData());
                           },
                           child: const Text('Manage', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+
+              // Live Urgent Task Active Indicator Banner
+              Consumer<UrgentTaskTrackingService>(
+                builder: (ctx, urgentService, _) {
+                  if (!urgentService.isTracking) return const SizedBox.shrink();
+                  final elapsedSec = urgentService.currentElapsedSeconds;
+                  final h = elapsedSec ~/ 3600;
+                  final m = (elapsedSec % 3600) ~/ 60;
+                  final s = elapsedSec % 60;
+                  final timeStr = h > 0
+                      ? '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}'
+                      : '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+
+                  const urgentColor = Colors.amber;
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withOpacity(isDark ? 0.15 : 0.1),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: Colors.amber.shade700, width: 1.5),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.shade700,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.flash_on_rounded, color: Colors.white, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      urgentService.title,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                        color: isDark ? Colors.amber[200] : Colors.amber[900],
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                    decoration: BoxDecoration(color: Colors.redAccent, borderRadius: BorderRadius.circular(4)),
+                                    child: const Text('LIVE URGENT', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Time running: $timeStr • Started: ${urgentService.startTime != null ? DateFormat('hh:mm a').format(urgentService.startTime!) : ''}',
+                                style: TextStyle(fontSize: 11, color: AppColors.textSecondaryColor(context)),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.amber.shade700,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            elevation: 0,
+                          ),
+                          onPressed: () async {
+                            final block = await urgentService.stopAndSaveTracking();
+                            if (ctx.mounted && block != null) {
+                              ScaffoldMessenger.of(ctx).showSnackBar(
+                                SnackBar(
+                                  content: Text('✅ Urgent task completed: ${block.durationMinutes} mins logged!'),
+                                  backgroundColor: AppColors.success,
+                                ),
+                              );
+                            }
+                            _loadData();
+                          },
+                          child: const Text('Stop & Save', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
                         ),
                       ],
                     ),

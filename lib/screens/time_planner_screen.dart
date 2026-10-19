@@ -7,9 +7,12 @@ import '../data/models/time_block.dart';
 import '../data/models/time_sub_task.dart';
 import '../data/models/daily_note.dart';
 import '../data/models/focus_session.dart';
+import '../data/models/daily_score.dart';
+import '../data/models/app_usage.dart';
 import '../services/usage_tracking_service.dart';
 import '../services/schedule_notification_service.dart';
 import '../services/transport_tracking_service.dart';
+import '../services/urgent_task_tracking_service.dart';
 import 'focus_screen.dart';
 
 class TimePlannerScreen extends StatefulWidget {
@@ -25,6 +28,9 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
   Map<int, List<TimeSubTask>> _subTasks = {};
   List<DailyNote> _dailyNotes = [];
   List<FocusSession> _focusSessions = [];
+  DailyScore? _dailyScore;
+  List<AppUsage> _appUsages = [];
+  Set<String> _datesWithActivity = {};
   bool _isLoading = true;
   bool _hasNotificationPermission = true;
 
@@ -34,6 +40,14 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
   DateTime? _transportStartTime;
   int _transportElapsedSeconds = 0;
   Timer? _transportTimer;
+
+  // Urgent task live tracker service & state
+  final UrgentTaskTrackingService _urgentService = UrgentTaskTrackingService.instance;
+  bool _isTrackingUrgent = false;
+  DateTime? _urgentStartTime;
+  int _urgentElapsedSeconds = 0;
+  Timer? _urgentTimer;
+
   late ScrollController _dateScrollController;
 
   final List<String> _categories = [
@@ -56,6 +70,8 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
     _checkNotificationPermission();
     _syncTransportFromService();
     _transportService.addListener(_onTransportServiceChanged);
+    _syncUrgentFromService();
+    _urgentService.addListener(_onUrgentServiceChanged);
     _loadBlocks();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollToSelectedDate();
@@ -66,10 +82,10 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
     if (!_dateScrollController.hasClients) return;
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final startDate = today.subtract(const Duration(days: 15));
+    final startDate = today.subtract(const Duration(days: 60));
     final targetDate = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
     final dayIndex = targetDate.difference(startDate).inDays;
-    if (dayIndex >= 0 && dayIndex <= 30) {
+    if (dayIndex >= 0 && dayIndex <= 90) {
       final screenWidth = MediaQuery.of(context).size.width;
       final targetOffset = (dayIndex * 66.0) - (screenWidth / 2) + 33.0;
       _dateScrollController.animateTo(
@@ -129,6 +145,55 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
     });
   }
 
+  void _syncUrgentFromService() {
+    final isTracking = _urgentService.isTracking;
+    final startTime = _urgentService.startTime;
+    final elapsed = _urgentService.currentElapsedSeconds;
+
+    if (mounted) {
+      setState(() {
+        _isTrackingUrgent = isTracking;
+        _urgentStartTime = startTime;
+        _urgentElapsedSeconds = elapsed;
+      });
+    }
+
+    if (isTracking) {
+      _startUrgentUiTimer();
+    } else {
+      _urgentTimer?.cancel();
+      _urgentTimer = null;
+    }
+  }
+
+  void _onUrgentServiceChanged() {
+    if (mounted) {
+      _syncUrgentFromService();
+    }
+  }
+
+  void _startUrgentUiTimer() {
+    _urgentTimer?.cancel();
+    _urgentTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        if (_urgentService.isTracking) {
+          setState(() {
+            _urgentElapsedSeconds = _urgentService.currentElapsedSeconds;
+            _urgentStartTime = _urgentService.startTime;
+            _isTrackingUrgent = true;
+          });
+        } else {
+          _urgentTimer?.cancel();
+          setState(() {
+            _isTrackingUrgent = false;
+            _urgentElapsedSeconds = 0;
+            _urgentStartTime = null;
+          });
+        }
+      }
+    });
+  }
+
   Future<void> _checkNotificationPermission() async {
     final hasPerm = await UsageTrackingService.hasNotificationPermission();
     if (mounted) {
@@ -140,6 +205,8 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
   void dispose() {
     _transportTimer?.cancel();
     _transportService.removeListener(_onTransportServiceChanged);
+    _urgentTimer?.cancel();
+    _urgentService.removeListener(_onUrgentServiceChanged);
     _dateScrollController.dispose();
     super.dispose();
   }
@@ -153,6 +220,17 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
     final sessions = await DatabaseHelper.instance.getFocusSessionsForDate(dateStr);
     final subTasks = await DatabaseHelper.instance.getSubTasksForDate(dateStr);
     final notes = await DatabaseHelper.instance.getDailyNotesForDate(dateStr);
+    final dailyScore = await DatabaseHelper.instance.getDailyScore(dateStr);
+    final appUsages = await DatabaseHelper.instance.getUsageForDate(dateStr);
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final startRange = _dateString(today.subtract(const Duration(days: 60)));
+    final endRange = _dateString(today.add(const Duration(days: 30)));
+    final datesWithActivity = await DatabaseHelper.instance.getDatesWithActivity(
+      startDate: startRange,
+      endDate: endRange,
+    );
 
     // Smart priority sorting:
     // 1. Incomplete/Pending tasks FIRST (sorted by start time)
@@ -175,6 +253,9 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
         _subTasks = subTasks;
         _dailyNotes = notes;
         _focusSessions = sessions;
+        _dailyScore = dailyScore;
+        _appUsages = appUsages;
+        _datesWithActivity = datesWithActivity;
         _isLoading = false;
       });
     }
@@ -1336,6 +1417,179 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Transport tracking discarded.')),
+        );
+      }
+    }
+  }
+
+  void _startUrgentTracking({String? initialTitle, int? parentBlockId, String? parentTaskName}) async {
+    final titleController = TextEditingController(text: initialTitle ?? 'Urgent Errand');
+    final presets = ['Urgent Call', 'Emergency Errand', 'Family Matter', 'Quick Review', 'Emergency Fix', 'Urgent Meeting'];
+
+    final selectedTitle = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        return Container(
+          padding: EdgeInsets.only(
+            top: 20,
+            left: 20,
+            right: 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+          ),
+          decoration: BoxDecoration(
+            color: AppColors.surface(context),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.flash_on_rounded, color: Colors.amber, size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Start Live Urgent Timer',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimaryColor(context),
+                          ),
+                        ),
+                        Text(
+                          parentTaskName != null
+                              ? 'Interrupted while doing: "$parentTaskName"'
+                              : 'Time keeps running until you stop it. Past data will not be removed.',
+                          style: TextStyle(fontSize: 12, color: AppColors.textSecondaryColor(context)),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: titleController,
+                autofocus: true,
+                style: TextStyle(color: AppColors.textPrimaryColor(context)),
+                decoration: InputDecoration(
+                  labelText: 'Urgent Task / Errand Title',
+                  prefixIcon: const Icon(Icons.edit_note, color: Colors.amber),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: presets.map((p) => ActionChip(
+                  label: Text(p, style: const TextStyle(fontSize: 12)),
+                  avatar: const Icon(Icons.flash_on, size: 14, color: Colors.amber),
+                  onPressed: () => titleController.text = p,
+                )).toList(),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.amber.shade700,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  icon: const Icon(Icons.play_arrow_rounded, size: 22),
+                  label: const Text('Start Urgent Stopwatch Now', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  onPressed: () => Navigator.pop(ctx, titleController.text.trim()),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (selectedTitle != null && selectedTitle.isNotEmpty) {
+      await _urgentService.startTracking(
+        title: selectedTitle,
+        parentBlockId: parentBlockId,
+        parentTaskName: parentTaskName,
+      );
+      _syncUrgentFromService();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('⚡ Urgent timer started: "$selectedTitle"! Time runs until stopped.'),
+            backgroundColor: Colors.amber.shade800,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _stopAndSaveUrgentTracking() async {
+    final block = await _urgentService.stopAndSaveTracking(customDate: _selectedDate);
+    _syncUrgentFromService();
+    _loadBlocks();
+
+    if (mounted && block != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✅ Urgent task completed: ${block.durationMinutes} mins logged to Schedule!'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    }
+  }
+
+  void _cancelUrgentTracking() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Discard Urgent Task Tracking?'),
+        content: const Text('Are you sure you want to stop urgent tracking without saving this task?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Keep Tracking')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Discard', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      await _urgentService.cancelTracking();
+      _syncUrgentFromService();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Urgent task tracking discarded.')),
         );
       }
     }

@@ -578,6 +578,54 @@ class DatabaseHelper {
     return result.map((json) => DailyNote.fromMap(json)).toList();
   }
 
+  /// Returns set of dates ('yyyy-MM-dd') that have recorded activities (time blocks, focus sessions, app usage, or scores).
+  Future<Set<String>> getDatesWithActivity({required String startDate, required String endDate}) async {
+    final db = await instance.database;
+    final dates = <String>{};
+
+    try {
+      final blockDates = await db.rawQuery(
+        'SELECT DISTINCT date FROM time_blocks WHERE date BETWEEN ? AND ?',
+        [startDate, endDate],
+      );
+      for (final row in blockDates) {
+        final d = row['date'];
+        if (d != null && d is String) dates.add(d);
+      }
+
+      final focusDates = await db.rawQuery(
+        'SELECT DISTINCT date FROM focus_sessions WHERE date BETWEEN ? AND ?',
+        [startDate, endDate],
+      );
+      for (final row in focusDates) {
+        final d = row['date'];
+        if (d != null && d is String) dates.add(d);
+      }
+
+      final scoreDates = await db.rawQuery(
+        'SELECT DISTINCT date FROM daily_scores WHERE date BETWEEN ? AND ?',
+        [startDate, endDate],
+      );
+      for (final row in scoreDates) {
+        final d = row['date'];
+        if (d != null && d is String) dates.add(d);
+      }
+
+      final noteDates = await db.rawQuery(
+        'SELECT DISTINCT date FROM daily_notes WHERE date BETWEEN ? AND ?',
+        [startDate, endDate],
+      );
+      for (final row in noteDates) {
+        final d = row['date'];
+        if (d != null && d is String) dates.add(d);
+      }
+    } catch (e) {
+      debugPrint('Error getting dates with activity: $e');
+    }
+
+    return dates;
+  }
+
   // Clear data
   Future<void> clearTodayUsage(String date) async {
     final db = await instance.database;
