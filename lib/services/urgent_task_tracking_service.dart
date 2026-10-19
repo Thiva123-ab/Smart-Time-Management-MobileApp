@@ -162,7 +162,7 @@ class UrgentTaskTrackingService extends ChangeNotifier {
     );
 
     // Save into database safely preserving all other records
-    final newBlockId = await DatabaseHelper.instance.insertTimeBlock(block);
+    await DatabaseHelper.instance.insertTimeBlock(block);
 
     // Also link under parent block if started from within a specific time block
     if (_parentBlockId != null) {
