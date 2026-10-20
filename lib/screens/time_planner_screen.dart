@@ -13,6 +13,7 @@ import '../services/usage_tracking_service.dart';
 import '../services/schedule_notification_service.dart';
 import '../services/transport_tracking_service.dart';
 import '../services/urgent_task_tracking_service.dart';
+import '../services/sleep_tracking_service.dart';
 import 'focus_screen.dart';
 
 class TimePlannerScreen extends StatefulWidget {
@@ -48,6 +49,13 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
   int _urgentElapsedSeconds = 0;
   Timer? _urgentTimer;
 
+  // Sleep live tracker service & state
+  final SleepTrackingService _sleepService = SleepTrackingService.instance;
+  bool _isTrackingSleep = false;
+  DateTime? _sleepStartTime;
+  int _sleepElapsedSeconds = 0;
+  Timer? _sleepTimer;
+
   late ScrollController _dateScrollController;
 
   final List<String> _categories = [
@@ -57,6 +65,7 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
     'Reading',
     'Fitness',
     'Transport',
+    'Sleep',
     'Personal',
     'Meeting',
     'Break',
@@ -72,6 +81,8 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
     _transportService.addListener(_onTransportServiceChanged);
     _syncUrgentFromService();
     _urgentService.addListener(_onUrgentServiceChanged);
+    _syncSleepFromService();
+    _sleepService.addListener(_onSleepServiceChanged);
     _loadBlocks();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollToSelectedDate();
@@ -194,6 +205,55 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
     });
   }
 
+  void _syncSleepFromService() {
+    final isTracking = _sleepService.isTracking;
+    final startTime = _sleepService.startTime;
+    final elapsed = _sleepService.currentElapsedSeconds;
+
+    if (mounted) {
+      setState(() {
+        _isTrackingSleep = isTracking;
+        _sleepStartTime = startTime;
+        _sleepElapsedSeconds = elapsed;
+      });
+    }
+
+    if (isTracking) {
+      _startSleepUiTimer();
+    } else {
+      _sleepTimer?.cancel();
+      _sleepTimer = null;
+    }
+  }
+
+  void _onSleepServiceChanged() {
+    if (mounted) {
+      _syncSleepFromService();
+    }
+  }
+
+  void _startSleepUiTimer() {
+    _sleepTimer?.cancel();
+    _sleepTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        if (_sleepService.isTracking) {
+          setState(() {
+            _sleepElapsedSeconds = _sleepService.currentElapsedSeconds;
+            _sleepStartTime = _sleepService.startTime;
+            _isTrackingSleep = true;
+          });
+        } else {
+          _sleepTimer?.cancel();
+          setState(() {
+            _isTrackingSleep = false;
+            _sleepElapsedSeconds = 0;
+            _sleepStartTime = null;
+          });
+        }
+      }
+    });
+  }
+
   Future<void> _checkNotificationPermission() async {
     final hasPerm = await UsageTrackingService.hasNotificationPermission();
     if (mounted) {
@@ -207,6 +267,8 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
     _transportService.removeListener(_onTransportServiceChanged);
     _urgentTimer?.cancel();
     _urgentService.removeListener(_onUrgentServiceChanged);
+    _sleepTimer?.cancel();
+    _sleepService.removeListener(_onSleepServiceChanged);
     _dateScrollController.dispose();
     super.dispose();
   }
@@ -221,10 +283,26 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
     final subTasks = await DatabaseHelper.instance.getSubTasksForDate(dateStr);
     final notes = await DatabaseHelper.instance.getDailyNotesForDate(dateStr);
     final dailyScore = await DatabaseHelper.instance.getDailyScore(dateStr);
-    final appUsages = await DatabaseHelper.instance.getUsageForDate(dateStr);
-
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
+    final isToday = _selectedDate.year == now.year &&
+        _selectedDate.month == now.month &&
+        _selectedDate.day == now.day;
+
+    // App usage is strictly analyzed ONLY for today (12:00 AM midnight to 11:59:59 PM / 24 hours max)
+    List<AppUsage> appUsages = [];
+    if (isToday) {
+      final rawUsages = await UsageTrackingService.fetchTodayUsage();
+      final maxAllowedMinutes = (now.hour * 60 + now.minute).clamp(1, 1440);
+      appUsages = rawUsages.map((u) {
+        if (u.durationMinutes > maxAllowedMinutes) {
+          return u.copyWith(durationMinutes: maxAllowedMinutes);
+        }
+        return u;
+      }).toList();
+      await DatabaseHelper.instance.replaceAppUsageForDate(dateStr, appUsages);
+    }
+
     final startRange = _dateString(today.subtract(const Duration(days: 60)));
     final endRange = _dateString(today.add(const Duration(days: 30)));
     final datesWithActivity = await DatabaseHelper.instance.getDatesWithActivity(
@@ -275,6 +353,8 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
         return const Color(0xFF00B894);
       case 'transport':
         return const Color(0xFF00B4D8);
+      case 'sleep':
+        return const Color(0xFF6C5CE7);
       case 'personal':
         return const Color(0xFFFD79A8);
       case 'meeting':
@@ -300,6 +380,8 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
         return Icons.fitness_center_outlined;
       case 'transport':
         return Icons.directions_bus_rounded;
+      case 'sleep':
+        return Icons.bedtime_rounded;
       case 'personal':
         return Icons.person_outline;
       case 'meeting':
@@ -1854,6 +1936,12 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                             const SizedBox(height: 18),
                           ],
 
+                          // Live Sleep Tracker Card (Active or on Today)
+                          if (_isTrackingSleep || isToday) ...[
+                            _buildSleepTrackerCard(isDark),
+                            const SizedBox(height: 18),
+                          ],
+
                           // Section Title: Scheduled Time Blocks
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1889,8 +1977,9 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                           // Focus Sessions on this date (Deep Work & Pomodoros)
                           _buildFocusSessionsSection(isDark),
 
-                          // App Usage Recorded on this Day (for past date history)
-                          _buildPastAppUsageSection(isDark),
+                          // App Usage strictly for Today (12:00 AM to 11:59 PM / 24h)
+                          if (isToday)
+                            _buildTodayAppUsageSection(isDark),
 
                           const SizedBox(height: 40),
                         ],
@@ -2633,6 +2722,532 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
     );
   }
 
+  // Sleep Tracker Methods & Card
+  Widget _buildSleepTrackerCard(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: _isTrackingSleep
+            ? const Color(0xFF6C5CE7).withOpacity(isDark ? 0.2 : 0.12)
+            : AppColors.surface(context),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: _isTrackingSleep ? const Color(0xFF6C5CE7) : AppColors.cardBorder(context),
+          width: _isTrackingSleep ? 1.8 : 1.0,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6C5CE7).withOpacity(0.18),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.bedtime_rounded,
+                  color: Color(0xFF6C5CE7),
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            _isTrackingSleep ? _sleepService.title : 'Sleeping Time Tracker',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimaryColor(context),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (_isTrackingSleep) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF6C5CE7),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'SLEEPING',
+                              style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _isTrackingSleep
+                          ? 'Calculating sleep hours in real-time overnight until you wake up...'
+                          : 'Going to bed? Start live sleep tracker or log past sleep hours accurately.',
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondaryColor(context)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          if (_isTrackingSleep) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceVariant(context),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.nightlight_round, size: 20, color: Color(0xFF6C5CE7)),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Sleep Duration: ',
+                        style: TextStyle(fontSize: 13, color: AppColors.textSecondaryColor(context)),
+                      ),
+                      Text(
+                        _formatStopwatch(_sleepElapsedSeconds),
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? const Color(0xFFA29BFE) : const Color(0xFF5F27CD),
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    'Bedtime: ${_sleepStartTime != null ? DateFormat('hh:mm a').format(_sleepStartTime!) : ''}',
+                    style: TextStyle(fontSize: 11, color: AppColors.textMutedColor(context)),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(
+              width: double.infinity,
+              height: 46,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF6C5CE7),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                icon: const Icon(Icons.wb_sunny_rounded, size: 20),
+                label: const Text('☀️ Wake Up & Save Sleeping Time', style: TextStyle(fontWeight: FontWeight.bold)),
+                onPressed: _stopAndSaveSleepTracking,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Center(
+              child: TextButton(
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                ),
+                onPressed: _cancelSleepTracking,
+                child: Text(
+                  'Discard sleep session without saving',
+                  style: TextStyle(
+                    color: AppColors.textMutedColor(context),
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+            ),
+          ] else ...[
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 44,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF6C5CE7),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        elevation: 0,
+                      ),
+                      icon: const Icon(Icons.bedtime_rounded, size: 18),
+                      label: const Text('Start Sleep Tracker', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      onPressed: () => _startSleepTracking(),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: SizedBox(
+                    height: 44,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF6C5CE7),
+                        side: const BorderSide(color: Color(0xFF6C5CE7), width: 1.5),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      icon: const Icon(Icons.calculate_outlined, size: 18),
+                      label: const Text('Log Past Sleep', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      onPressed: () => _showManualSleepDialog(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _startSleepTracking() async {
+    await _sleepService.startSleep(title: 'Night Sleep');
+    _syncSleepFromService();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('🌙 Sleep Tracker started! Sleep duration will be calculated accurately overnight.'),
+          backgroundColor: Color(0xFF6C5CE7),
+        ),
+      );
+    }
+  }
+
+  Future<void> _stopAndSaveSleepTracking() async {
+    final block = await _sleepService.wakeUpAndSave(customDate: _selectedDate);
+    _syncSleepFromService();
+    _loadBlocks();
+
+    if (mounted && block != null) {
+      final hours = block.durationMinutes ~/ 60;
+      final mins = block.durationMinutes % 60;
+      final durStr = hours > 0 ? '${hours}h ${mins}m' : '${mins}m';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('☀️ Good morning! $durStr sleep accurately logged to Schedule!'),
+          backgroundColor: const Color(0xFF6C5CE7),
+        ),
+      );
+    }
+  }
+
+  void _cancelSleepTracking() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Discard Sleep Tracking?'),
+        content: const Text('Are you sure you want to stop sleep tracking without saving this session?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Keep Tracking')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Discard', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      await _sleepService.cancelSleep();
+      _syncSleepFromService();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sleep session discarded.')),
+        );
+      }
+    }
+  }
+
+  void _showManualSleepDialog() {
+    TimeOfDay bedtime = const TimeOfDay(hour: 23, minute: 0); // 11:00 PM
+    TimeOfDay waketime = const TimeOfDay(hour: 7, minute: 0);  // 07:00 AM
+    String selectedQuality = 'Good 🙂';
+
+    int calculateSleepMinutes(TimeOfDay bed, TimeOfDay wake) {
+      final bedMins = bed.hour * 60 + bed.minute;
+      final wakeMins = wake.hour * 60 + wake.minute;
+      if (wakeMins <= bedMins) {
+        // Crossed midnight (e.g. 11:00 PM to 07:00 AM)
+        return (1440 - bedMins) + wakeMins;
+      } else {
+        return wakeMins - bedMins;
+      }
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final totalMins = calculateSleepMinutes(bedtime, waketime);
+            final hours = totalMins ~/ 60;
+            final mins = totalMins % 60;
+            final durationStr = '${hours}h ${mins.toString().padLeft(2, '0')}m';
+
+            return Container(
+              padding: EdgeInsets.fromLTRB(20, 16, 20, MediaQuery.of(context).viewInsets.bottom + 24),
+              decoration: BoxDecoration(
+                color: AppColors.surface(context),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: AppColors.cardBorder(context),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF6C5CE7).withOpacity(0.18),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.calculate_outlined, color: Color(0xFF6C5CE7), size: 22),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Calculate & Log Sleeping Time',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimaryColor(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Select your bedtime and wake-up time. Duration is calculated accurately across midnight.',
+                    style: TextStyle(fontSize: 12, color: AppColors.textSecondaryColor(context)),
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Calculated Duration Card
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFF6C5CE7).withOpacity(0.2),
+                          const Color(0xFF5F27CD).withOpacity(0.1),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFF6C5CE7).withOpacity(0.4)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.bedtime_rounded, color: Color(0xFF6C5CE7), size: 24),
+                            const SizedBox(width: 10),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Calculated Sleep', style: TextStyle(fontSize: 12, color: AppColors.textSecondaryColor(context))),
+                                Text(
+                                  durationStr,
+                                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF6C5CE7)),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF6C5CE7),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            totalMins >= 420 ? 'Optimal (7h+)' : 'Short Sleep',
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Bedtime & Wake Time Selectors
+                  Row(
+                    children: [
+                      // Bedtime
+                      Expanded(
+                        child: InkWell(
+                          onTap: () async {
+                            final picked = await showTimePicker(context: context, initialTime: bedtime);
+                            if (picked != null) {
+                              setModalState(() => bedtime = picked);
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(14),
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceVariant(context),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: AppColors.cardBorder(context)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Bedtime (Going to sleep)', style: TextStyle(fontSize: 11, color: AppColors.textMutedColor(context))),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.nightlight_outlined, size: 16, color: Color(0xFF6C5CE7)),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      bedtime.format(context),
+                                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimaryColor(context)),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Wake time
+                      Expanded(
+                        child: InkWell(
+                          onTap: () async {
+                            final picked = await showTimePicker(context: context, initialTime: waketime);
+                            if (picked != null) {
+                              setModalState(() => waketime = picked);
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(14),
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceVariant(context),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: AppColors.cardBorder(context)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Wake-up Time', style: TextStyle(fontSize: 11, color: AppColors.textMutedColor(context))),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.wb_sunny_outlined, size: 16, color: Colors.amber),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      waketime.format(context),
+                                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimaryColor(context)),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Quality Chips
+                  Text('Sleep Quality', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textSecondaryColor(context))),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    children: ['Deep & Restful 😴', 'Good 🙂', 'Light 🥱', 'Interrupted 😫'].map((q) {
+                      final isSel = selectedQuality == q;
+                      return ChoiceChip(
+                        label: Text(q, style: TextStyle(fontSize: 11, fontWeight: isSel ? FontWeight.bold : FontWeight.normal)),
+                        selected: isSel,
+                        selectedColor: const Color(0xFF6C5CE7).withOpacity(0.25),
+                        onSelected: (val) {
+                          if (val) setModalState(() => selectedQuality = q);
+                        },
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Save Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF6C5CE7),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      icon: const Icon(Icons.check_circle_outline, size: 20),
+                      label: Text('Save $durationStr Sleeping Time to Schedule', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      onPressed: () async {
+                        final now = DateTime.now();
+                        DateTime bedDt = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, bedtime.hour, bedtime.minute);
+                        DateTime wakeDt = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, waketime.hour, waketime.minute);
+
+                        // If wake time is earlier or equal to bedtime, bedtime was the previous evening
+                        if (wakeDt.isBefore(bedDt)) {
+                          bedDt = bedDt.subtract(const Duration(days: 1));
+                        }
+
+                        Navigator.pop(ctx);
+                        await _sleepService.logManualSleep(
+                          sleepStart: bedDt,
+                          wakeUp: wakeDt,
+                          title: 'Night Sleep',
+                          qualityNote: selectedQuality,
+                        );
+                        _loadBlocks();
+
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('✅ $durationStr of sleeping time saved to schedule!'),
+                              backgroundColor: const Color(0xFF6C5CE7),
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _showUrgentActionSheet(TimeBlock block) {
     showModalBottomSheet(
       context: context,
@@ -2832,70 +3447,82 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Time badge, Category and Running Now indicator
+                        // Time badge, Category and Running Now indicator (responsive Wrap to avoid overflow)
                         Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: catColor.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
+                            Expanded(
+                              child: Wrap(
+                                spacing: 6,
+                                runSpacing: 4,
+                                crossAxisAlignment: WrapCrossAlignment.center,
                                 children: [
-                                  Icon(_getCategoryIcon(block.category), size: 12, color: catColor),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    block.category,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                      color: catColor,
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: catColor.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(_getCategoryIcon(block.category), size: 12, color: catColor),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          block.category,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            color: catColor,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.access_time, size: 12, color: AppColors.textMutedColor(context)),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        '${block.startTime} - ${block.endTime}',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.textSecondaryColor(context),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  if (isRunningNow)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.redAccent.withOpacity(0.15),
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(color: Colors.redAccent.withOpacity(0.5), width: 1),
+                                      ),
+                                      child: const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.fiber_manual_record, size: 7, color: Colors.redAccent),
+                                          SizedBox(width: 3),
+                                          Text(
+                                            'RUNNING NOW',
+                                            style: TextStyle(
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.redAccent,
+                                              letterSpacing: 0.3,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                 ],
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            Icon(Icons.access_time, size: 13, color: AppColors.textMutedColor(context)),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${block.startTime} - ${block.endTime}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textSecondaryColor(context),
-                              ),
-                            ),
-                            if (isRunningNow) ...[
-                              const SizedBox(width: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.redAccent.withOpacity(0.15),
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(color: Colors.redAccent.withOpacity(0.5), width: 1),
-                                ),
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.fiber_manual_record, size: 7, color: Colors.redAccent),
-                                    SizedBox(width: 3),
-                                    Text(
-                                      'RUNNING NOW',
-                                      style: TextStyle(
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.redAccent,
-                                        letterSpacing: 0.3,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                            const Spacer(),
+                            const SizedBox(width: 6),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                               decoration: BoxDecoration(
@@ -3276,7 +3903,7 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
     );
   }
 
-  Widget _buildPastAppUsageSection(bool isDark) {
+  Widget _buildTodayAppUsageSection(bool isDark) {
     if (_appUsages.isEmpty) return const SizedBox.shrink();
 
     final topApps = _appUsages.take(5).toList();
@@ -3294,7 +3921,7 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                 const Icon(Icons.pie_chart_outline, size: 20, color: Color(0xFF00CEC9)),
                 const SizedBox(width: 8),
                 Text(
-                  'App Usage on this Day',
+                  "Today's App Usage (24h)",
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -3319,6 +3946,14 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
               ),
             ),
           ],
+        ),
+        const SizedBox(height: 3),
+        Text(
+          '12:00 AM – 11:59 PM (Today only)',
+          style: TextStyle(
+            fontSize: 11,
+            color: AppColors.textMutedColor(context),
+          ),
         ),
         const SizedBox(height: 12),
         Container(

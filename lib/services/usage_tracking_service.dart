@@ -200,76 +200,7 @@ class UsageTrackingService {
       }
     } catch (_) {}
 
-    // Return sample starter data only if permission is not granted yet
-    if (!permitted) {
-      return _getSampleData(dateStr, startOfDay, endOfDay);
-    }
-
+    // Do not return fake sample data; return empty list if not permitted
     return [];
-  }
-
-  static List<AppUsage> _getSampleData(String date, int startOfDay, int endOfDay) {
-    return [
-      AppUsage(
-        packageName: 'com.google.android.youtube',
-        appName: 'YouTube',
-        category: AppCategoryManager.categoryEntertainment,
-        startTime: startOfDay,
-        endTime: endOfDay,
-        durationMinutes: 85,
-        date: date,
-        launchCount: 14,
-      ),
-      AppUsage(
-        packageName: 'com.instagram.android',
-        appName: 'Instagram',
-        category: AppCategoryManager.categorySocial,
-        startTime: startOfDay,
-        endTime: endOfDay,
-        durationMinutes: 45,
-        date: date,
-        launchCount: 22,
-      ),
-      AppUsage(
-        packageName: 'com.whatsapp',
-        appName: 'WhatsApp',
-        category: AppCategoryManager.categoryCommunication,
-        startTime: startOfDay,
-        endTime: endOfDay,
-        durationMinutes: 40,
-        date: date,
-        launchCount: 28,
-      ),
-      AppUsage(
-        packageName: 'org.coursera.android',
-        appName: 'Coursera',
-        category: AppCategoryManager.categoryEducation,
-        startTime: startOfDay,
-        endTime: endOfDay,
-        durationMinutes: 75,
-        date: date,
-        launchCount: 4,
-      ),
-      AppUsage(
-        packageName: 'notion.id',
-        appName: 'Notion',
-        category: AppCategoryManager.categoryProductivity,
-        startTime: startOfDay,
-        endTime: endOfDay,
-        durationMinutes: 60,
-        date: date,
-        launchCount: 8,
-      ),
-      AppUsage(
-        packageName: 'com.android.chrome',
-        appName: 'Chrome',
-        category: AppCategoryManager.categoryBrowser,
-        startTime: startOfDay,
-        endTime: endOfDay,
-        durationMinutes: 30,
-        date: date,
-        launchCount: 11,
-      ),
-    ];
   }
 }

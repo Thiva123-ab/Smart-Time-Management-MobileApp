@@ -57,10 +57,8 @@ class _UsageScreenState extends State<UsageScreen> {
     final apps = await UsageTrackingService.fetchUsageForDate(date);
     final db = DatabaseHelper.instance;
 
-    // Save fetched usage to local database
-    if (apps.isNotEmpty) {
-      await db.saveAppUsageList(apps);
-    }
+    // Save fetched usage to local database cleanly
+    await db.replaceAppUsageForDate(_dateString(date), apps);
 
     final limits = await db.getAllAppLimits();
     final limitMap = <String, int>{};
@@ -466,9 +464,18 @@ class _UsageScreenState extends State<UsageScreen> {
                                 final limit = _appLimits[app.packageName];
                                 final hasLimit = limit != null && limit > 0;
                                 final isExceeded = hasLimit && app.durationMinutes >= limit;
-                                final usageRatio = _totalUsageMinutes > 0
-                                    ? (app.durationMinutes / _totalUsageMinutes).clamp(0.0, 1.0)
-                                    : 0.0;
+                                final isNearLimit = hasLimit && !isExceeded && (app.durationMinutes / limit) >= 0.75;
+
+                                // If app has a limit, show progress against the set limit (e.g. 42m/60m = 70%)
+                                // When limit is exceeded, progress is 100% and bar turns RED.
+                                final double usageRatio;
+                                if (hasLimit) {
+                                  usageRatio = (app.durationMinutes / limit).clamp(0.0, 1.0);
+                                } else {
+                                  usageRatio = _totalUsageMinutes > 0
+                                      ? (app.durationMinutes / _totalUsageMinutes).clamp(0.0, 1.0)
+                                      : 0.0;
+                                }
 
                                 return Container(
                                   margin: const EdgeInsets.only(bottom: 10),
@@ -478,8 +485,11 @@ class _UsageScreenState extends State<UsageScreen> {
                                     borderRadius: BorderRadius.circular(16),
                                     border: Border.all(
                                       color: isExceeded
-                                          ? AppColors.danger.withOpacity(0.6)
-                                          : AppColors.cardBorder(context),
+                                          ? AppColors.danger.withValues(alpha: 0.8)
+                                          : isNearLimit
+                                              ? AppColors.warning.withValues(alpha: 0.6)
+                                              : AppColors.cardBorder(context),
+                                      width: isExceeded ? 1.5 : 1.0,
                                     ),
                                   ),
                                   child: Column(
@@ -529,11 +539,17 @@ class _UsageScreenState extends State<UsageScreen> {
                                                     if (hasLimit) ...[
                                                       const SizedBox(width: 8),
                                                       Text(
-                                                        'Limit: ${limit}m',
+                                                        isExceeded
+                                                            ? 'Limit: ${limit}m (Exceeded!)'
+                                                            : 'Limit: ${limit}m (${(app.durationMinutes / limit * 100).toInt()}%)',
                                                         style: TextStyle(
                                                           fontSize: 10,
                                                           fontWeight: FontWeight.bold,
-                                                          color: isExceeded ? AppColors.danger : AppColors.warning,
+                                                          color: isExceeded
+                                                              ? AppColors.danger
+                                                              : isNearLimit
+                                                                  ? AppColors.warning
+                                                                  : (isDark ? AppColors.accentCyan : AppColors.primary),
                                                         ),
                                                       ),
                                                     ],
@@ -562,7 +578,9 @@ class _UsageScreenState extends State<UsageScreen> {
                                                   child: Icon(
                                                     Icons.tune,
                                                     size: 18,
-                                                    color: hasLimit ? AppColors.primary : AppColors.textMutedColor(context),
+                                                    color: hasLimit
+                                                        ? (isExceeded ? AppColors.danger : AppColors.primary)
+                                                        : AppColors.textMutedColor(context),
                                                   ),
                                                 ),
                                               ),
@@ -581,7 +599,9 @@ class _UsageScreenState extends State<UsageScreen> {
                                           valueColor: AlwaysStoppedAnimation<Color>(
                                             isExceeded
                                                 ? AppColors.danger
-                                                : (isDark ? AppColors.accentCyan : AppColors.primary),
+                                                : isNearLimit
+                                                    ? AppColors.warning
+                                                    : (isDark ? AppColors.accentCyan : AppColors.primary),
                                           ),
                                         ),
                                       ),

@@ -236,13 +236,17 @@ class MainActivity : FlutterActivity() {
         val foregroundTimeMap = mutableMapOf<String, Long>()
         val launchCountMap = mutableMapOf<String, Int>()
 
-        // 1. Precise Event-Based Usage (strictly calculates time spent between startTime and endTime)
-        // This guarantees that after 12:00 midnight (start of today), the usage starts strictly from 0 minutes!
+        val now = System.currentTimeMillis()
+        val effectiveEnd = Math.min(endTime, now)
+        val maxPossibleDuration = Math.max(0L, effectiveEnd - startTime).coerceAtMost(86400000L) // Max 24 hours (1440 minutes)
+
+        // 1. Precise Event-Based Usage (strictly calculates time spent between startTime and effectiveEnd)
         var hasValidEvents = false
         try {
-            val events = usageStatsManager.queryEvents(startTime, endTime)
+            val events = usageStatsManager.queryEvents(startTime, effectiveEnd)
             if (events != null) {
                 val startTimes = mutableMapOf<String, Long>()
+                val handledInitialExit = mutableSetOf<String>()
                 val event = UsageEvents.Event()
 
                 while (events.hasNextEvent()) {
@@ -256,57 +260,80 @@ class MainActivity : FlutterActivity() {
                         UsageEvents.Event.ACTIVITY_RESUMED,
                         UsageEvents.Event.MOVE_TO_FOREGROUND -> {
                             hasValidEvents = true
+                            handledInitialExit.add(pkg)
                             startTimes[pkg] = time
                             launchCountMap[pkg] = (launchCountMap[pkg] ?: 0) + 1
                         }
                         UsageEvents.Event.ACTIVITY_PAUSED,
-                        UsageEvents.Event.MOVE_TO_BACKGROUND -> {
+                        UsageEvents.Event.MOVE_TO_BACKGROUND,
+                        UsageEvents.Event.ACTIVITY_STOPPED -> {
                             hasValidEvents = true
-                            val resumedTime = startTimes[pkg]
+                            val resumedTime = startTimes.remove(pkg)
                             if (resumedTime != null) {
-                                val sessionDuration = (time - resumedTime).coerceAtLeast(0L)
-                                foregroundTimeMap[pkg] = (foregroundTimeMap[pkg] ?: 0L) + sessionDuration
-                                startTimes.remove(pkg)
-                            } else {
-                                // App was already in the foreground when startTime (midnight) occurred
-                                val sessionDuration = (time - startTime).coerceAtLeast(0L)
-                                foregroundTimeMap[pkg] = (foregroundTimeMap[pkg] ?: 0L) + sessionDuration
+                                val sessionStart = Math.max(startTime, resumedTime)
+                                val sessionEnd = Math.min(effectiveEnd, time)
+                                if (sessionEnd > sessionStart) {
+                                    val sessionDuration = sessionEnd - sessionStart
+                                    foregroundTimeMap[pkg] = (foregroundTimeMap[pkg] ?: 0L) + sessionDuration
+                                }
+                            } else if (!handledInitialExit.contains(pkg)) {
+                                // App was already open before midnight (startTime). Count from startTime to first exit only once.
+                                handledInitialExit.add(pkg)
+                                val sessionStart = startTime
+                                val sessionEnd = Math.min(effectiveEnd, time)
+                                if (sessionEnd > sessionStart) {
+                                    val sessionDuration = sessionEnd - sessionStart
+                                    foregroundTimeMap[pkg] = (foregroundTimeMap[pkg] ?: 0L) + sessionDuration
+                                }
                             }
+                            // Ignore subsequent duplicate PAUSED/BACKGROUND events for the same exit!
                         }
                     }
                 }
 
-                // Any app currently still open in the foreground
+                // Any app currently still open in the foreground at query time
                 for ((pkg, resumedTime) in startTimes) {
-                    val sessionDuration = (endTime - resumedTime).coerceAtLeast(0L)
-                    foregroundTimeMap[pkg] = (foregroundTimeMap[pkg] ?: 0L) + sessionDuration
+                    val sessionStart = Math.max(startTime, resumedTime)
+                    if (effectiveEnd > sessionStart) {
+                        val sessionDuration = effectiveEnd - sessionStart
+                        foregroundTimeMap[pkg] = (foregroundTimeMap[pkg] ?: 0L) + sessionDuration
+                    }
                 }
             }
         } catch (_: Exception) {}
 
-        // 2. Fallback: only if queryEvents yielded zero events AND we are querying past historical dates
-        // (If querying today and no events found, usage is genuinely 0 minutes after midnight!)
-        val isQueryingToday = (System.currentTimeMillis() - startTime) < 86400000L && startTime <= System.currentTimeMillis()
-        if (!hasValidEvents && !isQueryingToday) {
-            val aggregatedStats = try {
-                usageStatsManager.queryAndAggregateUsageStats(startTime, endTime)
+        // 2. Fallback: if queryEvents yielded zero events, query INTERVAL_DAILY stats that were active today (lastTimeStamp >= startTime)
+        if (!hasValidEvents) {
+            val dailyStats = try {
+                usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, startTime, effectiveEnd)
             } catch (_: Exception) {
-                emptyMap<String, UsageStats>()
+                emptyList<UsageStats>()
             }
 
-            for ((pkg, stat) in aggregatedStats) {
-                val time = stat.totalTimeInForeground
-                if (time > 0 && pkg != "android" && pkg != packageName && pkg != "com.android.systemui") {
-                    foregroundTimeMap[pkg] = time
+            if (dailyStats != null && dailyStats.isNotEmpty()) {
+                for (stat in dailyStats) {
+                    val pkg = stat.packageName ?: continue
+                    if (pkg == "android" || pkg == packageName || pkg == "com.android.systemui") continue
+                    if (stat.lastTimeStamp >= startTime && stat.totalTimeInForeground > 0) {
+                        val boundedDuration = Math.min(stat.totalTimeInForeground, maxPossibleDuration)
+                        if (boundedDuration > (foregroundTimeMap[pkg] ?: 0L)) {
+                            foregroundTimeMap[pkg] = boundedDuration
+                        }
+                    }
                 }
             }
         }
 
         val pm = packageManager
         val resultList = mutableListOf<Map<String, Any>>()
+        val maxPossibleMinutes = (maxPossibleDuration / 60000L).toInt().coerceIn(1, 1440)
 
         for ((pkg, timeMillis) in foregroundTimeMap) {
-            val durationMinutes = (timeMillis / 60000L).toInt()
+            var durationMinutes = (timeMillis / 60000L).toInt()
+            // Strictly enforce that no app exceeds the total elapsed time of today (max 24 hours / 1440 mins)
+            if (durationMinutes > maxPossibleMinutes) {
+                durationMinutes = maxPossibleMinutes
+            }
             if (durationMinutes <= 0) continue
 
             // Filter out system packages

@@ -139,22 +139,38 @@ class AppBlockerService : java.lang.Runnable, Service() {
             val event = UsageEvents.Event()
             var totalTime = 0L
             var lastResume: Long? = null
+            var handledInitialExit = false
+            var hasEvents = false
 
             while (events.hasNextEvent()) {
                 events.getNextEvent(event)
                 if (event.packageName == pkg) {
+                    val time = event.timeStamp
                     when (event.eventType) {
                         UsageEvents.Event.ACTIVITY_RESUMED,
                         UsageEvents.Event.MOVE_TO_FOREGROUND -> {
-                            lastResume = event.timeStamp
+                            hasEvents = true
+                            handledInitialExit = true
+                            lastResume = time
                         }
                         UsageEvents.Event.ACTIVITY_PAUSED,
-                        UsageEvents.Event.MOVE_TO_BACKGROUND -> {
+                        UsageEvents.Event.MOVE_TO_BACKGROUND,
+                        UsageEvents.Event.ACTIVITY_STOPPED -> {
+                            hasEvents = true
                             if (lastResume != null) {
-                                totalTime += (event.timeStamp - lastResume).coerceAtLeast(0L)
+                                val s = Math.max(startOfDay, lastResume)
+                                val e = Math.min(now, time)
+                                if (e > s) {
+                                    totalTime += (e - s)
+                                }
                                 lastResume = null
-                            } else {
-                                totalTime += (event.timeStamp - startOfDay).coerceAtLeast(0L)
+                            } else if (!handledInitialExit) {
+                                handledInitialExit = true
+                                val s = startOfDay
+                                val e = Math.min(now, time)
+                                if (e > s) {
+                                    totalTime += (e - s)
+                                }
                             }
                         }
                     }
@@ -162,9 +178,23 @@ class AppBlockerService : java.lang.Runnable, Service() {
             }
 
             if (lastResume != null) {
-                totalTime += (now - lastResume).coerceAtLeast(0L)
+                val s = Math.max(startOfDay, lastResume)
+                if (now > s) {
+                    totalTime += (now - s)
+                }
             }
-            totalTime
+
+            // Fallback only if queryEvents yielded zero events for this pkg
+            if (!hasEvents) {
+                val stats = usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, startOfDay, now)
+                val targetStat = stats?.firstOrNull { it.packageName == pkg && it.lastTimeStamp >= startOfDay }
+                if (targetStat != null && targetStat.totalTimeInForeground > 0) {
+                    totalTime = targetStat.totalTimeInForeground
+                }
+            }
+
+            val maxPossible = Math.max(0L, now - startOfDay)
+            totalTime.coerceIn(0L, maxPossible)
         } catch (_: Exception) {
             0L
         }

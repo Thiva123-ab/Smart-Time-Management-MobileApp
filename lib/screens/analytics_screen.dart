@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
 import '../data/local/database_helper.dart';
@@ -11,6 +12,32 @@ import '../domain/app_category_manager.dart';
 import '../domain/productivity_score_engine.dart';
 import '../services/usage_tracking_service.dart';
 import '../widgets/app_icon_widget.dart';
+
+class UnifiedNoteItem {
+  final String id;
+  final String date; // yyyy-MM-dd
+  final String title;
+  final String content;
+  final String category; // Idea, Note, Important, Reflection, Todo, Task Note, Sleep, Transport
+  final String? colorHex;
+  final bool isPinned;
+  final int timestamp;
+  final DailyNote? dailyNote;
+  final TimeBlock? timeBlock;
+
+  UnifiedNoteItem({
+    required this.id,
+    required this.date,
+    required this.title,
+    required this.content,
+    required this.category,
+    this.colorHex,
+    this.isPinned = false,
+    required this.timestamp,
+    this.dailyNote,
+    this.timeBlock,
+  });
+}
 
 class DayAnalyticsData {
   final DateTime date;
@@ -58,6 +85,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   int _selectedDayIndex = 6; // Default to last element (Today)
   bool _isLoading = true;
 
+  int _analyticsMainTab = 0; // 0: Analytics Overview, 1: All Notes History
+  List<DailyNote> _allDailyNotes = [];
+  List<TimeBlock> _allTaskBlocksWithNotes = [];
+  String _noteSearchQuery = '';
+  String _selectedNoteCategory = 'All';
+  final TextEditingController _noteSearchController = TextEditingController();
+
   List<DayAnalyticsData> _days = [];
   Map<String, TimeBudget> _budgetsMap = {};
 
@@ -65,6 +99,12 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   void initState() {
     super.initState();
     _loadAllAnalytics();
+  }
+
+  @override
+  void dispose() {
+    _noteSearchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadAllAnalytics() async {
@@ -151,14 +191,175 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       );
     }
 
+    final allDailyNotes = await db.getAllDailyNotes();
+    final allTaskBlocks = await db.getAllTimeBlocksWithNotes();
+
     if (mounted) {
       setState(() {
         _days = loadedDays;
         _budgetsMap = bMap;
+        _allDailyNotes = allDailyNotes;
+        _allTaskBlocksWithNotes = allTaskBlocks;
         _selectedDayIndex = loadedDays.isNotEmpty ? loadedDays.length - 1 : 0;
         _isLoading = false;
       });
     }
+  }
+
+  List<UnifiedNoteItem> get _unifiedNotes {
+    final List<UnifiedNoteItem> items = [];
+
+    for (final note in _allDailyNotes) {
+      items.add(
+        UnifiedNoteItem(
+          id: 'daily_${note.id}',
+          date: note.date,
+          title: note.title.isNotEmpty ? note.title : 'Quick Note',
+          content: note.content,
+          category: note.category.isNotEmpty ? note.category : 'Idea',
+          colorHex: note.colorHex,
+          isPinned: note.isPinned,
+          timestamp: note.createdAt,
+          dailyNote: note,
+        ),
+      );
+    }
+
+    for (final block in _allTaskBlocksWithNotes) {
+      final cat = block.category == 'Sleep'
+          ? 'Sleep'
+          : (block.category == 'Transport' ? 'Transport' : 'Task Note');
+      DateTime? dt;
+      try {
+        dt = DateTime.parse(block.date);
+      } catch (_) {}
+      final ts = dt?.millisecondsSinceEpoch ?? 0;
+
+      items.add(
+        UnifiedNoteItem(
+          id: 'block_${block.id}',
+          date: block.date,
+          title: block.title.isNotEmpty ? block.title : 'Activity Note',
+          content: block.notes ?? '',
+          category: cat,
+          colorHex: null,
+          isPinned: false,
+          timestamp: ts,
+          timeBlock: block,
+        ),
+      );
+    }
+
+    // Sort: 1) Date descending (most recent date on top)
+    // 2) If same date, pinned first
+    // 3) Timestamp descending
+    items.sort((a, b) {
+      final dateCmp = b.date.compareTo(a.date);
+      if (dateCmp != 0) return dateCmp;
+      if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
+      return b.timestamp.compareTo(a.timestamp);
+    });
+
+    return items;
+  }
+
+  List<UnifiedNoteItem> get _filteredNotes {
+    final all = _unifiedNotes;
+    return all.where((item) {
+      if (_selectedNoteCategory != 'All' && item.category != _selectedNoteCategory) {
+        return false;
+      }
+      if (_noteSearchQuery.trim().isNotEmpty) {
+        final q = _noteSearchQuery.toLowerCase().trim();
+        final inTitle = item.title.toLowerCase().contains(q);
+        final inContent = item.content.toLowerCase().contains(q);
+        final inDate = item.date.toLowerCase().contains(q);
+        final inCat = item.category.toLowerCase().contains(q);
+        if (!inTitle && !inContent && !inDate && !inCat) return false;
+      }
+      return true;
+    }).toList();
+  }
+
+  Color _hexToColor(String? hex) {
+    if (hex == null || hex.isEmpty) return AppColors.primary;
+    try {
+      final clean = hex.replaceAll('#', '');
+      return Color(int.parse('FF$clean', radix: 16));
+    } catch (_) {
+      return AppColors.primary;
+    }
+  }
+
+  Color _getNoteCategoryColor(String category, String? hex) {
+    if (hex != null && hex.isNotEmpty) return _hexToColor(hex);
+    switch (category) {
+      case 'Idea':
+        return Colors.amber;
+      case 'Important':
+        return const Color(0xFFEF4444);
+      case 'Reflection':
+        return const Color(0xFF8B5CF6);
+      case 'Todo':
+        return const Color(0xFF10B981);
+      case 'Sleep':
+        return const Color(0xFF6C5CE7);
+      case 'Transport':
+        return const Color(0xFFF97316);
+      case 'Task Note':
+        return const Color(0xFF06B6D4);
+      case 'Note':
+      default:
+        return const Color(0xFF3B82F6);
+    }
+  }
+
+  IconData _getNoteCategoryIcon(String category) {
+    switch (category) {
+      case 'Idea':
+        return Icons.lightbulb_rounded;
+      case 'Important':
+        return Icons.star_rounded;
+      case 'Reflection':
+        return Icons.psychology_rounded;
+      case 'Todo':
+        return Icons.check_circle_outline_rounded;
+      case 'Sleep':
+        return Icons.bedtime_rounded;
+      case 'Transport':
+        return Icons.directions_car_rounded;
+      case 'Task Note':
+        return Icons.timelapse_rounded;
+      case 'Note':
+      default:
+        return Icons.description_rounded;
+    }
+  }
+
+  String _formatNoteDateHeader(String dateStr) {
+    final now = DateTime.now();
+    final todayStr = DateFormat('yyyy-MM-dd').format(now);
+    final yesterdayStr = DateFormat('yyyy-MM-dd').format(now.subtract(const Duration(days: 1)));
+
+    DateTime? dt;
+    try {
+      dt = DateTime.parse(dateStr);
+    } catch (_) {}
+
+    final formatted = dt != null ? DateFormat('EEEE, MMM d, yyyy').format(dt) : dateStr;
+
+    if (dateStr == todayStr) {
+      return 'Today • $formatted';
+    } else if (dateStr == yesterdayStr) {
+      return 'Yesterday • $formatted';
+    }
+    return formatted;
+  }
+
+  String _formatTimestamp(int timestamp, String dateStr) {
+    if (timestamp <= 0) return dateStr;
+    final dt = DateTime.fromMillisecondsSinceEpoch(timestamp);
+    return DateFormat('MMM d • hh:mm a').format(dt);
   }
 
   String _formatTime(int minutes) {
@@ -285,8 +486,19 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     final catTotals = _activeCategoryTotals;
     final activeApps = _activeUsages;
 
+    final totalNotesCount = _unifiedNotes.length;
+
     return Scaffold(
       backgroundColor: AppColors.background(context),
+      floatingActionButton: _analyticsMainTab == 1
+          ? FloatingActionButton.extended(
+              onPressed: () => _showAddOrEditNoteDialog(),
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.note_add_rounded),
+              label: const Text('Add Note', style: TextStyle(fontWeight: FontWeight.bold)),
+            )
+          : null,
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -295,39 +507,82 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _analyticsMainTab == 0 ? 'Productivity Analytics' : 'All Notes & Journal',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimaryColor(context),
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _analyticsMainTab == 0
+                            ? 'Interactive insights & habits deep-dive'
+                            : 'Continuous chronological history with dates',
+                        style: TextStyle(
+                          color: AppColors.textSecondaryColor(context),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      'Productivity Analytics',
-                      style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimaryColor(context),
-                        letterSpacing: -0.5,
+                    InkWell(
+                      onTap: () => setState(() => _analyticsMainTab = _analyticsMainTab == 0 ? 1 : 0),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: _analyticsMainTab == 1
+                              ? AppColors.primary
+                              : AppColors.primary.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _analyticsMainTab == 1 ? Icons.insights_rounded : Icons.notes_rounded,
+                              size: 16,
+                              color: _analyticsMainTab == 1 ? Colors.white : AppColors.primary,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              _analyticsMainTab == 1 ? 'Charts' : 'Notes ($totalNotesCount)',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: _analyticsMainTab == 1 ? Colors.white : AppColors.primary,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Interactive insights & data deep-dive',
-                      style: TextStyle(
-                        color: AppColors.textSecondaryColor(context),
-                        fontSize: 13,
-                      ),
+                    const SizedBox(width: 6),
+                    IconButton(
+                      onPressed: _loadAllAnalytics,
+                      icon: const Icon(Icons.refresh_rounded),
+                      color: AppColors.primary,
+                      tooltip: 'Refresh Analytics',
                     ),
                   ],
                 ),
-                IconButton(
-                  onPressed: _loadAllAnalytics,
-                  icon: const Icon(Icons.refresh_rounded),
-                  color: AppColors.primary,
-                  tooltip: 'Refresh Analytics',
-                ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
 
-            // Timeframe Selector: Today / This Week / This Month
+            // Top Segmented Switcher
             Container(
               decoration: BoxDecoration(
                 color: AppColors.surface(context),
@@ -336,269 +591,1224 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               ),
               child: Row(
                 children: [
-                  _timePeriodButton('Day / Date', 0),
-                  _timePeriodButton('This Week', 1),
-                  _timePeriodButton('This Month', 2),
+                  _analyticsMainTabButton('📊 Overview & Habits', 0),
+                  _analyticsMainTabButton('📝 Notes Timeline ($totalNotesCount)', 1),
                 ],
               ),
             ),
-            const SizedBox(height: 18),
-
-            // Interactive 7-Day Trend Chart
-            _buildInteractive7DayChart(isDark),
             const SizedBox(height: 16),
 
-            // Selected Day In-Depth Quick Banner (Clickable!)
-            _buildSelectedDayQuickCard(currentDay, isDark),
-            const SizedBox(height: 16),
-
-            // Time Distribution Ratio Cards
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface(context),
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: AppColors.cardBorder(context)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: const BoxDecoration(
-                                color: AppColors.success,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Productive Ratio',
-                              style: TextStyle(
-                                color: AppColors.textSecondaryColor(context),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '$prodRatio%',
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.success,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _formatTime(prodMins),
-                          style: TextStyle(
-                            color: AppColors.textMutedColor(context),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+            if (_analyticsMainTab == 0) ...[
+              // Timeframe Selector: Today / This Week / This Month
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.surface(context),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.cardBorder(context)),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface(context),
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: AppColors.cardBorder(context)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: const BoxDecoration(
-                                color: AppColors.danger,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Distractions',
-                              style: TextStyle(
-                                color: AppColors.textSecondaryColor(context),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '${totalMins > 0 ? 100 - prodRatio : 0}%',
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.danger,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _formatTime(distMins),
-                          style: TextStyle(
-                            color: AppColors.textMutedColor(context),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                child: Row(
+                  children: [
+                    _timePeriodButton('Day / Date', 0),
+                    _timePeriodButton('This Week', 1),
+                    _timePeriodButton('This Month', 2),
+                  ],
                 ),
-              ],
-            ),
-            const SizedBox(height: 22),
-
-            // Hint banner for user interaction
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: isDark ? 0.15 : 0.08),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
               ),
-              child: Row(
+              const SizedBox(height: 18),
+
+              // Interactive 7-Day Trend Chart
+              _buildInteractive7DayChart(isDark),
+              const SizedBox(height: 16),
+
+              // Selected Day In-Depth Quick Banner (Clickable!)
+              _buildSelectedDayQuickCard(currentDay, isDark),
+              const SizedBox(height: 16),
+
+              // Time Distribution Ratio Cards
+              Row(
                 children: [
-                  const Icon(Icons.touch_app_rounded, color: AppColors.primary, size: 18),
-                  const SizedBox(width: 10),
                   Expanded(
-                    child: Text(
-                      'Tap any day bar, category, or app below to open full deep-dive analysis!',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? AppColors.accentCyan : AppColors.primaryDark,
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface(context),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: AppColors.cardBorder(context)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(
+                                  color: AppColors.success,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Productive Ratio',
+                                style: TextStyle(
+                                  color: AppColors.textSecondaryColor(context),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '$prodRatio%',
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.success,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _formatTime(prodMins),
+                            style: TextStyle(
+                              color: AppColors.textMutedColor(context),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface(context),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: AppColors.cardBorder(context)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(
+                                  color: AppColors.danger,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Distractions',
+                                style: TextStyle(
+                                  color: AppColors.textSecondaryColor(context),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '${totalMins > 0 ? 100 - prodRatio : 0}%',
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.danger,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _formatTime(distMins),
+                            style: TextStyle(
+                              color: AppColors.textMutedColor(context),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 22),
+              const SizedBox(height: 22),
 
-            // Category Breakdown Section (Interactive!)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Time Breakdown by Category',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimaryColor(context),
-                  ),
-                ),
-                Text(
-                  '${catTotals.length} Categories',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textMutedColor(context),
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (catTotals.isEmpty)
+              // Hint banner for user interaction
               Container(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
-                  color: AppColors.surface(context),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.cardBorder(context)),
+                  color: AppColors.primary.withValues(alpha: isDark ? 0.15 : 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
                 ),
-                child: Center(
-                  child: Text(
-                    'No category usage recorded for this timeframe.',
-                    style: TextStyle(color: AppColors.textMutedColor(context), fontSize: 13),
-                  ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.touch_app_rounded, color: AppColors.primary, size: 18),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Tap any day bar, category, or app below to open full deep-dive analysis!',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? AppColors.accentCyan : AppColors.primaryDark,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              )
-            else
-              ...catTotals.entries.map((entry) {
-                final cat = entry.key;
-                final minutes = entry.value;
-                final pct = totalMins > 0 ? (minutes / totalMins) : 0.0;
-                final appsInCat = activeApps.where((a) => a.category == cat).toList();
+              ),
+              const SizedBox(height: 22),
 
-                return _buildCategoryCard(
-                  category: cat,
-                  minutes: minutes,
-                  percentage: pct,
-                  appsInCategory: appsInCat,
-                  totalTime: totalMins,
-                );
-              }),
+              // Category Breakdown Section
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Time Breakdown by Category',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimaryColor(context),
+                    ),
+                  ),
+                  Text(
+                    '${catTotals.length} Categories',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textMutedColor(context),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (catTotals.isEmpty)
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface(context),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.cardBorder(context)),
+                  ),
+                  child: Center(
+                    child: Text(
+                      'No category usage recorded for this timeframe.',
+                      style: TextStyle(color: AppColors.textMutedColor(context), fontSize: 13),
+                    ),
+                  ),
+                )
+              else
+                ...catTotals.entries.map((entry) {
+                  final cat = entry.key;
+                  final minutes = entry.value;
+                  final pct = totalMins > 0 ? (minutes / totalMins) : 0.0;
+                  final appsInCat = activeApps.where((a) => a.category == cat).toList();
 
-            const SizedBox(height: 24),
+                  return _buildCategoryCard(
+                    category: cat,
+                    minutes: minutes,
+                    percentage: pct,
+                    appsInCategory: appsInCat,
+                    totalTime: totalMins,
+                  );
+                }),
 
-            // Top Apps & Screen Time (Interactive!)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Top Apps & Digital Habits',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimaryColor(context),
+              const SizedBox(height: 24),
+
+              // Top Apps & Screen Time
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Top Apps & Digital Habits',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimaryColor(context),
+                    ),
                   ),
-                ),
-                Text(
-                  '${activeApps.length} Apps',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textMutedColor(context),
-                    fontWeight: FontWeight.w500,
+                  Text(
+                    '${activeApps.length} Apps',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textMutedColor(context),
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (activeApps.isEmpty)
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: AppColors.surface(context),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.cardBorder(context)),
-                ),
-                child: Center(
-                  child: Text(
-                    'No app activities recorded for this date.',
-                    style: TextStyle(color: AppColors.textMutedColor(context), fontSize: 13),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (activeApps.isEmpty)
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface(context),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.cardBorder(context)),
                   ),
-                ),
-              )
-            else
-              ...activeApps.take(8).map((app) {
-                return _buildAppItemCard(app, totalMins);
-              }),
+                  child: Center(
+                    child: Text(
+                      'No app activities recorded for this date.',
+                      style: TextStyle(color: AppColors.textMutedColor(context), fontSize: 13),
+                    ),
+                  ),
+                )
+              else
+                ...activeApps.take(8).map((app) {
+                  return _buildAppItemCard(app, totalMins);
+                }),
+
+              const SizedBox(height: 24),
+
+              // Notes & Journal Stream Section in Overview
+              _buildRecentNotesPreviewSection(isDark),
+            ] else ...[
+              // Full Notes & Journal Timeline Stream
+              _buildAllNotesTimelineView(isDark),
+            ],
 
             const SizedBox(height: 30),
           ],
         ),
       ),
     );
+  }
+
+  Widget _analyticsMainTabButton(String title, int index) {
+    final isSelected = _analyticsMainTab == index;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _analyticsMainTab = index),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.primary : Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            title,
+            style: TextStyle(
+              color: isSelected ? Colors.white : AppColors.textSecondaryColor(context),
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+              fontSize: 13,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecentNotesPreviewSection(bool isDark) {
+    final totalNotes = _unifiedNotes.length;
+    final recentList = _unifiedNotes.take(3).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.notes_rounded, size: 20, color: AppColors.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Saved Notes & Journal Stream',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimaryColor(context),
+                  ),
+                ),
+              ],
+            ),
+            TextButton(
+              onPressed: () => setState(() => _analyticsMainTab = 1),
+              child: Text(
+                'View All ($totalNotes) →',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        if (recentList.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: AppColors.surface(context),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.cardBorder(context)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.lightbulb_outline_rounded, color: Colors.amber, size: 28),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'No notes recorded yet',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimaryColor(context),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Capture day ideas, reflections, and insights here or from Time Planner.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textMutedColor(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => _showAddOrEditNoteDialog(),
+                  child: const Text('Add Note', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          )
+        else
+          Column(
+            children: [
+              ...recentList.map((item) => _buildNoteCard(item, isDark)),
+              const SizedBox(height: 6),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    side: BorderSide(color: AppColors.primary.withValues(alpha: 0.5)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  onPressed: () => setState(() => _analyticsMainTab = 1),
+                  icon: const Icon(Icons.history_edu_rounded, size: 18),
+                  label: Text(
+                    'Browse All $totalNotes Notes & Reflections with Dates',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                ),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  Widget _buildAllNotesTimelineView(bool isDark) {
+    final filtered = _filteredNotes;
+    final totalCount = _unifiedNotes.length;
+    final pinnedCount = _unifiedNotes.where((n) => n.isPinned).length;
+
+    final Map<String, List<UnifiedNoteItem>> grouped = {};
+    for (final note in filtered) {
+      grouped.putIfAbsent(note.date, () => []).add(note);
+    }
+
+    final categories = [
+      'All',
+      'Idea',
+      'Note',
+      'Important',
+      'Reflection',
+      'Todo',
+      'Task Note',
+      'Sleep',
+      'Transport'
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Summary Card
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [
+                AppColors.primary,
+                AppColors.primaryDark,
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withValues(alpha: 0.25),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.history_edu_rounded, color: Colors.white, size: 28),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$totalCount Notes Recorded',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      pinnedCount > 0
+                          ? '$pinnedCount pinned • Across all dates'
+                          : 'Continuous chronological history with dates',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.white70,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: AppColors.primary,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () => _showAddOrEditNoteDialog(),
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: const Text('New Note', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Search bar
+        TextField(
+          controller: _noteSearchController,
+          onChanged: (val) => setState(() => _noteSearchQuery = val),
+          style: TextStyle(color: AppColors.textPrimaryColor(context)),
+          decoration: InputDecoration(
+            hintText: 'Search notes by keyword, title, date...',
+            hintStyle: TextStyle(color: AppColors.textMutedColor(context), fontSize: 13),
+            prefixIcon: const Icon(Icons.search_rounded, size: 20),
+            suffixIcon: _noteSearchQuery.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear_rounded, size: 18),
+                    onPressed: () {
+                      _noteSearchController.clear();
+                      setState(() => _noteSearchQuery = '');
+                    },
+                  )
+                : null,
+            filled: true,
+            fillColor: AppColors.surface(context),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: AppColors.cardBorder(context)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: AppColors.cardBorder(context)),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Category Filter Chips
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: categories.map((cat) {
+              final isSel = _selectedNoteCategory == cat;
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: FilterChip(
+                  selected: isSel,
+                  showCheckmark: false,
+                  avatar: cat != 'All'
+                      ? Icon(
+                          _getNoteCategoryIcon(cat),
+                          size: 15,
+                          color: isSel ? Colors.white : _getNoteCategoryColor(cat, null),
+                        )
+                      : null,
+                  label: Text(cat == 'All' ? 'All ($totalCount)' : cat),
+                  labelStyle: TextStyle(
+                    fontSize: 12,
+                    fontWeight: isSel ? FontWeight.bold : FontWeight.w500,
+                    color: isSel ? Colors.white : AppColors.textPrimaryColor(context),
+                  ),
+                  backgroundColor: AppColors.surface(context),
+                  selectedColor: AppColors.primary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    side: BorderSide(
+                      color: isSel ? AppColors.primary : AppColors.cardBorder(context),
+                    ),
+                  ),
+                  onSelected: (_) => setState(() => _selectedNoteCategory = cat),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        if (filtered.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: AppColors.surface(context),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: AppColors.cardBorder(context)),
+            ),
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(Icons.search_off_rounded, size: 48, color: AppColors.textMutedColor(context)),
+                  const SizedBox(height: 12),
+                  Text(
+                    _noteSearchQuery.isNotEmpty
+                        ? 'No notes matching "$_noteSearchQuery"'
+                        : 'No notes in "$_selectedNoteCategory"',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimaryColor(context),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Try another keyword or category filter.',
+                    style: TextStyle(color: AppColors.textMutedColor(context), fontSize: 13),
+                  ),
+                  if (_noteSearchQuery.isNotEmpty || _selectedNoteCategory != 'All') ...[
+                    const SizedBox(height: 14),
+                    TextButton.icon(
+                      onPressed: () {
+                        _noteSearchController.clear();
+                        setState(() {
+                          _noteSearchQuery = '';
+                          _selectedNoteCategory = 'All';
+                        });
+                      },
+                      icon: const Icon(Icons.refresh_rounded, size: 16),
+                      label: const Text('Reset Filters'),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          )
+        else
+          ...grouped.entries.map((group) {
+            final dateStr = group.key;
+            final notesOnDate = group.value;
+            final headerTitle = _formatNoteDateHeader(dateStr);
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Date Banner Header
+                Container(
+                  margin: const EdgeInsets.only(top: 8, bottom: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceVariant(context),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.cardBorder(context)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.calendar_month_rounded, size: 15, color: AppColors.primary),
+                      const SizedBox(width: 8),
+                      Text(
+                        headerTitle,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimaryColor(context),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          '${notesOnDate.length}',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                ...notesOnDate.map((note) => _buildNoteCard(note, isDark)),
+                const SizedBox(height: 8),
+              ],
+            );
+          }),
+      ],
+    );
+  }
+
+  Widget _buildNoteCard(UnifiedNoteItem note, bool isDark) {
+    final catColor = _getNoteCategoryColor(note.category, note.colorHex);
+    final catIcon = _getNoteCategoryIcon(note.category);
+    final timeStr = _formatTimestamp(note.timestamp, note.date);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surface(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: note.isPinned ? Colors.amber.withValues(alpha: 0.6) : AppColors.cardBorder(context),
+          width: note.isPinned ? 1.5 : 1,
+        ),
+        boxShadow: note.isPinned
+            ? [
+                BoxShadow(
+                  color: Colors.amber.withValues(alpha: 0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ]
+            : null,
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Left color accent bar
+              Container(width: 5, color: catColor),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header Row: Category badge, timestamp, pin status, popup menu
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: catColor.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(catIcon, size: 13, color: catColor),
+                                const SizedBox(width: 4),
+                                Text(
+                                  note.category,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: catColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (note.isPinned) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.push_pin_rounded, size: 11, color: Colors.amber),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    'Pinned',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: isDark ? Colors.amber[200] : Colors.amber[900],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                          const Spacer(),
+                          Text(
+                            timeStr,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textMutedColor(context),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          PopupMenuButton<String>(
+                            icon: Icon(
+                              Icons.more_vert_rounded,
+                              size: 18,
+                              color: AppColors.textSecondaryColor(context),
+                            ),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            onSelected: (value) async {
+                              if (value == 'copy') {
+                                final text = '${note.title}\n\n${note.content}';
+                                await Clipboard.setData(ClipboardData(text: text));
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('📋 Note copied to clipboard')),
+                                  );
+                                }
+                              } else if (value == 'pin' && note.dailyNote?.id != null) {
+                                await _togglePinDailyNote(note.dailyNote!.id!, note.isPinned);
+                              } else if (value == 'edit' && note.dailyNote != null) {
+                                _showAddOrEditNoteDialog(noteToEdit: note.dailyNote);
+                              } else if (value == 'delete' && note.dailyNote?.id != null) {
+                                await _deleteDailyNote(note.dailyNote!.id!);
+                              }
+                            },
+                            itemBuilder: (ctx) => [
+                              const PopupMenuItem(
+                                value: 'copy',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.copy_rounded, size: 16),
+                                    SizedBox(width: 8),
+                                    Text('Copy Text'),
+                                  ],
+                                ),
+                              ),
+                              if (note.dailyNote != null) ...[
+                                PopupMenuItem(
+                                  value: 'pin',
+                                  child: Row(
+                                    children: [
+                                      Icon(note.isPinned ? Icons.push_pin_outlined : Icons.push_pin_rounded, size: 16),
+                                      const SizedBox(width: 8),
+                                      Text(note.isPinned ? 'Unpin' : 'Pin to Top'),
+                                    ],
+                                  ),
+                                ),
+                                const PopupMenuItem(
+                                  value: 'edit',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.edit_rounded, size: 16),
+                                      SizedBox(width: 8),
+                                      Text('Edit Note'),
+                                    ],
+                                  ),
+                                ),
+                                const PopupMenuItem(
+                                  value: 'delete',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.delete_outline_rounded, size: 16, color: Colors.red),
+                                      SizedBox(width: 8),
+                                      Text('Delete', style: TextStyle(color: Colors.red)),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+
+                      // Title
+                      Text(
+                        note.title,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimaryColor(context),
+                        ),
+                      ),
+                      if (note.content.isNotEmpty) ...[
+                        const SizedBox(height: 5),
+                        Text(
+                          note.content,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textSecondaryColor(context),
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+
+                      // If linked to a task block
+                      if (note.timeBlock != null) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceVariant(context),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.cardBorder(context)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.schedule_rounded, size: 13, color: AppColors.primary),
+                              const SizedBox(width: 5),
+                              Text(
+                                '${note.timeBlock!.title} (${note.timeBlock!.durationMinutes}m)',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textSecondaryColor(context),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showAddOrEditNoteDialog({DailyNote? noteToEdit, String? defaultDate}) {
+    final titleController = TextEditingController(text: noteToEdit?.title ?? '');
+    final contentController = TextEditingController(text: noteToEdit?.content ?? '');
+    String selectedDate = noteToEdit?.date ?? defaultDate ?? DateFormat('yyyy-MM-dd').format(DateTime.now());
+    String selectedCategory = noteToEdit?.category ?? 'Idea';
+    String? selectedColorHex = noteToEdit?.colorHex ?? '#6366F1';
+    bool isPinned = noteToEdit?.isPinned ?? false;
+
+    final categories = ['Idea', 'Note', 'Important', 'Reflection', 'Todo'];
+    final colorOptions = ['#6366F1', '#EC4899', '#10B981', '#F59E0B', '#3B82F6', '#8B5CF6'];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+            decoration: BoxDecoration(
+              color: AppColors.surface(context),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        noteToEdit == null ? 'Add Day Note & Idea' : 'Edit Note',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimaryColor(context),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded),
+                        onPressed: () => Navigator.pop(ctx),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  // Date picker row
+                  Row(
+                    children: [
+                      const Icon(Icons.calendar_today_rounded, size: 16, color: AppColors.primary),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Date: $selectedDate',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondaryColor(context),
+                        ),
+                      ),
+                      const Spacer(),
+                      TextButton(
+                        onPressed: () async {
+                          final parsed = DateTime.tryParse(selectedDate) ?? DateTime.now();
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: parsed,
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime(2035),
+                          );
+                          if (picked != null) {
+                            setSheetState(() {
+                              selectedDate = DateFormat('yyyy-MM-dd').format(picked);
+                            });
+                          }
+                        },
+                        child: const Text('Change Date', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  // Category Selector chips
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: categories.map((cat) {
+                      final isSel = selectedCategory == cat;
+                      return ChoiceChip(
+                        label: Text(cat),
+                        selected: isSel,
+                        selectedColor: AppColors.primary,
+                        labelStyle: TextStyle(
+                          fontSize: 12,
+                          color: isSel ? Colors.white : AppColors.textPrimaryColor(context),
+                          fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                        ),
+                        onSelected: (_) => setSheetState(() => selectedCategory = cat),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 12),
+                  // Title
+                  TextField(
+                    controller: titleController,
+                    style: TextStyle(color: AppColors.textPrimaryColor(context)),
+                    decoration: InputDecoration(
+                      labelText: 'Title',
+                      hintText: 'e.g., Focus insight, morning idea...',
+                      filled: true,
+                      fillColor: AppColors.surfaceVariant(context),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  // Content
+                  TextField(
+                    controller: contentController,
+                    maxLines: 4,
+                    minLines: 3,
+                    style: TextStyle(color: AppColors.textPrimaryColor(context)),
+                    decoration: InputDecoration(
+                      labelText: 'Content',
+                      hintText: 'Enter your notes, ideas, or reflections...',
+                      filled: true,
+                      fillColor: AppColors.surfaceVariant(context),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Pin toggle and color picker row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Checkbox(
+                            value: isPinned,
+                            activeColor: AppColors.primary,
+                            onChanged: (val) => setSheetState(() => isPinned = val ?? false),
+                          ),
+                          Text(
+                            'Pin to top',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: AppColors.textPrimaryColor(context),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: colorOptions.map((hex) {
+                          final isSel = selectedColorHex == hex;
+                          return GestureDetector(
+                            onTap: () => setSheetState(() => selectedColorHex = hex),
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 3),
+                              width: 22,
+                              height: 22,
+                              decoration: BoxDecoration(
+                                color: _hexToColor(hex),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: isSel ? Colors.white : Colors.transparent,
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      onPressed: () async {
+                        final title = titleController.text.trim();
+                        final content = contentController.text.trim();
+                        if (title.isEmpty && content.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Please enter a note title or content')),
+                          );
+                          return;
+                        }
+
+                        final db = DatabaseHelper.instance;
+                        if (noteToEdit == null) {
+                          final newNote = DailyNote(
+                            date: selectedDate,
+                            title: title.isEmpty ? 'Quick Note' : title,
+                            content: content,
+                            category: selectedCategory,
+                            colorHex: selectedColorHex,
+                            isPinned: isPinned,
+                          );
+                          await db.insertDailyNote(newNote);
+                        } else {
+                          final updated = noteToEdit.copyWith(
+                            date: selectedDate,
+                            title: title.isEmpty ? 'Quick Note' : title,
+                            content: content,
+                            category: selectedCategory,
+                            colorHex: selectedColorHex,
+                            isPinned: isPinned,
+                            updatedAt: DateTime.now().millisecondsSinceEpoch,
+                          );
+                          await db.updateDailyNote(updated);
+                        }
+
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        _loadAllAnalytics();
+                      },
+                      child: Text(
+                        noteToEdit == null ? 'Save Note' : 'Update Note',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deleteDailyNote(int id) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Note?'),
+        content: const Text('Are you sure you want to permanently delete this note?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await DatabaseHelper.instance.deleteDailyNote(id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('🗑️ Note deleted successfully')),
+        );
+        _loadAllAnalytics();
+      }
+    }
+  }
+
+  Future<void> _togglePinDailyNote(int id, bool currentPinned) async {
+    await DatabaseHelper.instance.togglePinDailyNote(id, !currentPinned);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(currentPinned ? '📌 Note unpinned' : '📌 Note pinned to top'),
+        ),
+      );
+      _loadAllAnalytics();
+    }
   }
 
   // --------------------------------------------------------------------------

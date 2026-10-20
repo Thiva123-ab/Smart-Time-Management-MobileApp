@@ -12,6 +12,7 @@ import '../domain/productivity_score_engine.dart';
 import '../services/usage_tracking_service.dart';
 import '../services/transport_tracking_service.dart';
 import '../services/urgent_task_tracking_service.dart';
+import '../services/sleep_tracking_service.dart';
 import '../data/models/user_profile.dart';
 import 'time_planner_screen.dart';
 import 'focus_screen.dart';
@@ -62,7 +63,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final today = UsageTrackingService.todayDate;
 
     final usages = await UsageTrackingService.fetchTodayUsage();
-    await db.saveAppUsageList(usages);
+    await db.replaceAppUsageForDate(today, usages);
     final goals = await db.getGoalsForDate(today);
 
     int total = 0;
@@ -277,8 +278,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ? '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}'
                       : '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
 
-                  const urgentColor = Colors.amber;
-
                   return Container(
                     margin: const EdgeInsets.only(bottom: 16),
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -354,6 +353,100 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             _loadData();
                           },
                           child: const Text('Stop & Save', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+
+              // Live Sleep Active Indicator Banner
+              Consumer<SleepTrackingService>(
+                builder: (ctx, sleepService, _) {
+                  if (!sleepService.isTracking) return const SizedBox.shrink();
+                  final elapsedSec = sleepService.currentElapsedSeconds;
+                  final h = elapsedSec ~/ 3600;
+                  final m = (elapsedSec % 3600) ~/ 60;
+                  final s = elapsedSec % 60;
+                  final timeStr = h > 0
+                      ? '${h}h ${m.toString().padLeft(2, '0')}m ${s.toString().padLeft(2, '0')}s'
+                      : '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF6C5CE7).withOpacity(isDark ? 0.2 : 0.12),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: const Color(0xFF6C5CE7), width: 1.5),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF6C5CE7),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.bedtime_rounded, color: Colors.white, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      sleepService.title,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                        color: isDark ? const Color(0xFFA29BFE) : const Color(0xFF5F27CD),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                    decoration: BoxDecoration(color: const Color(0xFF6C5CE7), borderRadius: BorderRadius.circular(4)),
+                                    child: const Text('SLEEPING', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Sleeping: $timeStr • Started: ${sleepService.startTime != null ? DateFormat('hh:mm a').format(sleepService.startTime!) : ''}',
+                                style: TextStyle(fontSize: 11, color: AppColors.textSecondaryColor(context)),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF6C5CE7),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            elevation: 0,
+                          ),
+                          onPressed: () async {
+                            final block = await sleepService.wakeUpAndSave();
+                            if (ctx.mounted && block != null) {
+                              ScaffoldMessenger.of(ctx).showSnackBar(
+                                SnackBar(
+                                  content: Text('☀️ Good morning! ${block.durationMinutes ~/ 60}h ${block.durationMinutes % 60}m sleep logged!'),
+                                  backgroundColor: const Color(0xFF6C5CE7),
+                                ),
+                              );
+                            }
+                            _loadData();
+                          },
+                          child: const Text('Wake Up', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
                         ),
                       ],
                     ),
@@ -587,6 +680,97 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ],
                   ),
                 ),
+              ),
+              const SizedBox(height: 12),
+
+              // 4.1. Sleep Tracker & Summary Tile
+              Builder(
+                builder: (context) {
+                  final sleepBlocks = _todayBlocks.where((b) => b.category.toLowerCase() == 'sleep').toList();
+                  final totalSleepMinutes = sleepBlocks.fold<int>(0, (sum, b) => sum + b.durationMinutes);
+                  final sleepHours = totalSleepMinutes ~/ 60;
+                  final sleepMins = totalSleepMinutes % 60;
+
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface(context),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: const Color(0xFF6C5CE7).withOpacity(0.35)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF6C5CE7).withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.bedtime_rounded, color: Color(0xFF6C5CE7), size: 22),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    'Sleeping Time',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                      color: AppColors.textPrimaryColor(context),
+                                    ),
+                                  ),
+                                  if (totalSleepMinutes > 0) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF6C5CE7).withOpacity(0.15),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        '${sleepHours}h ${sleepMins}m today',
+                                        style: const TextStyle(
+                                          color: Color(0xFF6C5CE7),
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                totalSleepMinutes > 0
+                                    ? 'Healthy sleep recorded today. Tap to manage or track.'
+                                    : 'Track tonight\'s sleep or log past hours accurately.',
+                                style: TextStyle(fontSize: 11, color: AppColors.textSecondaryColor(context)),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        TextButton(
+                          style: TextButton.styleFrom(
+                            foregroundColor: const Color(0xFF6C5CE7),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          ),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const TimePlannerScreen()),
+                            ).then((_) => _loadData());
+                          },
+                          child: const Text('Open Tracker', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: 22),
 

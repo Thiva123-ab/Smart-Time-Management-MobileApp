@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/app_usage.dart';
@@ -278,6 +279,18 @@ class DatabaseHelper {
   }
 
   // App Usage
+  Future<void> replaceAppUsageForDate(String date, List<AppUsage> list) async {
+    final db = await instance.database;
+    await db.delete('app_usage', where: 'date = ?', whereArgs: [date]);
+    if (list.isNotEmpty) {
+      final batch = db.batch();
+      for (var item in list) {
+        batch.insert('app_usage', item.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+      }
+      await batch.commit(noResult: true);
+    }
+  }
+
   Future<void> saveAppUsageList(List<AppUsage> list) async {
     final db = await instance.database;
     final batch = db.batch();
@@ -576,6 +589,17 @@ class DatabaseHelper {
       orderBy: 'date DESC, isPinned DESC, createdAt DESC',
     );
     return result.map((json) => DailyNote.fromMap(json)).toList();
+  }
+
+  Future<List<TimeBlock>> getAllTimeBlocksWithNotes() async {
+    final db = await instance.database;
+    final result = await db.query(
+      'time_blocks',
+      where: 'notes IS NOT NULL AND notes != ?',
+      whereArgs: [''],
+      orderBy: 'date DESC, startTime DESC',
+    );
+    return result.map((json) => TimeBlock.fromMap(json)).toList();
   }
 
   /// Returns set of dates ('yyyy-MM-dd') that have recorded activities (time blocks, focus sessions, app usage, or scores).
