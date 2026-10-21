@@ -12,6 +12,7 @@ import '../domain/app_category_manager.dart';
 import '../domain/productivity_score_engine.dart';
 import '../services/usage_tracking_service.dart';
 import '../widgets/app_icon_widget.dart';
+import '../services/sleep_tracking_service.dart';
 
 class UnifiedNoteItem {
   final String id;
@@ -54,6 +55,13 @@ class DayAnalyticsData {
   final List<Goal> goals;
   final List<TimeBlock> timeBlocks;
   final List<DailyNote> notes;
+  final int elapsedDayMinutes;
+  final int sleepMinutes;
+  final int offlineProductiveMinutes;
+  final int phoneWastedMinutes;
+  final int otherWastedMinutes;
+  final int totalWastedMinutes;
+  final List<AppUsage> topDistractingApps;
 
   DayAnalyticsData({
     required this.date,
@@ -70,6 +78,13 @@ class DayAnalyticsData {
     required this.goals,
     required this.timeBlocks,
     required this.notes,
+    this.elapsedDayMinutes = 1440,
+    this.sleepMinutes = 0,
+    this.offlineProductiveMinutes = 0,
+    this.phoneWastedMinutes = 0,
+    this.otherWastedMinutes = 0,
+    this.totalWastedMinutes = 0,
+    this.topDistractingApps = const [],
   });
 }
 
@@ -156,6 +171,64 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       final blocks = await db.getTimeBlocksForDate(dateStr);
       final notes = await db.getDailyNotesForDate(dateStr);
 
+      final isToday = (i == 0);
+      final elapsedDayMinutes = isToday
+          ? (now.hour * 60 + now.minute).clamp(1, 1440)
+          : 1440;
+
+      // Calculate Sleep minutes from TimeBlocks
+      int sleepMins = blocks
+          .where((b) => b.category.trim().toLowerCase() == 'sleep')
+          .fold<int>(0, (sum, b) => sum + b.durationMinutes);
+
+      // If it's today and live sleep tracking is currently ongoing, add elapsed
+      if (isToday && SleepTrackingService.instance.isTracking) {
+        sleepMins += (SleepTrackingService.instance.currentElapsedSeconds ~/ 60);
+      }
+
+      // Offline productive minutes (completed tasks: Study, Work, Coding, Reading, Fitness, Meeting, Transport, etc.)
+      int offlineProdMins = blocks
+          .where((b) =>
+              b.isCompleted &&
+              b.category.trim().toLowerCase() != 'sleep' &&
+              b.category.trim().toLowerCase() != 'break' &&
+              b.category.trim().toLowerCase() != 'idle' &&
+              b.category.trim().toLowerCase() != 'entertainment')
+          .fold<int>(0, (sum, b) => sum + b.durationMinutes);
+
+      // Offline explicit distraction/break blocks
+      int offlineDistMins = blocks
+          .where((b) =>
+              b.category.trim().toLowerCase() == 'break' ||
+              b.category.trim().toLowerCase() == 'idle' ||
+              b.category.trim().toLowerCase() == 'entertainment')
+          .fold<int>(0, (sum, b) => sum + b.durationMinutes);
+
+      // Phone wasted time = distracting phone apps
+      int phoneWaste = dist;
+
+      // Accounted intentional minutes:
+      // Phone productive + offline productive + sleep + phone wasted + offline breaks
+      int accountedMins = prod + offlineProdMins + sleepMins + phoneWaste + offlineDistMins;
+      int untrackedIdleMins = (elapsedDayMinutes - accountedMins).clamp(0, elapsedDayMinutes);
+
+      // Other wasted time (anekuth eevata): offline idle & procrastination + explicit distraction blocks
+      int otherWaste = offlineDistMins + untrackedIdleMins;
+
+      // Total wasted time for the day
+      int totalWaste = phoneWaste + otherWaste;
+
+      // Top distracting apps sorted by duration
+      final distractingAppList = usages
+          .where((u) =>
+              AppCategoryManager.isDistracting(u.category) ||
+              u.category == 'Social Media' ||
+              u.category == 'Entertainment' ||
+              u.category == 'Gaming')
+          .where((u) => u.durationMinutes > 0)
+          .toList()
+        ..sort((a, b) => b.durationMinutes.compareTo(a.durationMinutes));
+
       final completedGoals = goals.where((g) => g.status == 'COMPLETED').length;
       final goalPct = goals.isNotEmpty
           ? (completedGoals * 100) ~/ goals.length
@@ -187,6 +260,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           goals: goals,
           timeBlocks: blocks,
           notes: notes,
+          elapsedDayMinutes: elapsedDayMinutes,
+          sleepMinutes: sleepMins,
+          offlineProductiveMinutes: offlineProdMins,
+          phoneWastedMinutes: phoneWaste,
+          otherWastedMinutes: otherWaste,
+          totalWastedMinutes: totalWaste,
+          topDistractingApps: distractingAppList,
         ),
       );
     }
@@ -423,6 +503,69 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     final multiplier = _selectedPeriodIndex == 2 ? 4.2 : 1.0;
     final weekSum = _days.fold<int>(0, (sum, d) => sum + d.distractingMinutes);
     return (weekSum * multiplier).round();
+  }
+
+  int get _activePhoneWastedMinutes {
+    if (_selectedPeriodIndex == 0) return _currentDay.phoneWastedMinutes;
+    if (_days.isEmpty) return 0;
+    final multiplier = _selectedPeriodIndex == 2 ? 4.2 : 1.0;
+    final weekSum = _days.fold<int>(0, (sum, d) => sum + d.phoneWastedMinutes);
+    return (weekSum * multiplier).round();
+  }
+
+  int get _activeOtherWastedMinutes {
+    if (_selectedPeriodIndex == 0) return _currentDay.otherWastedMinutes;
+    if (_days.isEmpty) return 0;
+    final multiplier = _selectedPeriodIndex == 2 ? 4.2 : 1.0;
+    final weekSum = _days.fold<int>(0, (sum, d) => sum + d.otherWastedMinutes);
+    return (weekSum * multiplier).round();
+  }
+
+  int get _activeTotalWastedMinutes => _activePhoneWastedMinutes + _activeOtherWastedMinutes;
+
+  int get _activeSleepMinutes {
+    if (_selectedPeriodIndex == 0) return _currentDay.sleepMinutes;
+    if (_days.isEmpty) return 0;
+    final multiplier = _selectedPeriodIndex == 2 ? 4.2 : 1.0;
+    final weekSum = _days.fold<int>(0, (sum, d) => sum + d.sleepMinutes);
+    return (weekSum * multiplier).round();
+  }
+
+  int get _activeOfflineProdMinutes {
+    if (_selectedPeriodIndex == 0) return _currentDay.offlineProductiveMinutes;
+    if (_days.isEmpty) return 0;
+    final multiplier = _selectedPeriodIndex == 2 ? 4.2 : 1.0;
+    final weekSum = _days.fold<int>(0, (sum, d) => sum + d.offlineProductiveMinutes);
+    return (weekSum * multiplier).round();
+  }
+
+  int get _activeElapsedMinutes {
+    if (_selectedPeriodIndex == 0) return _currentDay.elapsedDayMinutes;
+    if (_days.isEmpty) return 1440;
+    final multiplier = _selectedPeriodIndex == 2 ? 4.2 : 1.0;
+    final weekSum = _days.fold<int>(0, (sum, d) => sum + d.elapsedDayMinutes);
+    return (weekSum * multiplier).round();
+  }
+
+  List<AppUsage> get _activeTopDistractingApps {
+    if (_selectedPeriodIndex == 0) return _currentDay.topDistractingApps;
+    final map = <String, AppUsage>{};
+    for (var d in _days) {
+      for (var u in d.topDistractingApps) {
+        if (!map.containsKey(u.packageName)) {
+          map[u.packageName] = u;
+        } else {
+          final existing = map[u.packageName]!;
+          map[u.packageName] = existing.copyWith(
+            durationMinutes: existing.durationMinutes + u.durationMinutes,
+            launchCount: existing.launchCount + u.launchCount,
+          );
+        }
+      }
+    }
+    final list = map.values.toList();
+    list.sort((a, b) => b.durationMinutes.compareTo(a.durationMinutes));
+    return list;
   }
 
   Map<String, int> get _activeCategoryTotals {
@@ -738,6 +881,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                   ),
                 ],
               ),
+              const SizedBox(height: 20),
+
+              // Daily Wasted Time Breakdown Section (Phone vs Other Idle)
+              _buildWastedTimeBreakdownSection(currentDay, isDark),
               const SizedBox(height: 22),
 
               // Hint banner for user interaction
@@ -2109,8 +2256,636 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   }
 
   // --------------------------------------------------------------------------
-  // Category Card (Clickable to open Category Sheet)
+  // Wasted Time Breakdown Section (Phone vs Other/Offline Idle)
   // --------------------------------------------------------------------------
+  Widget _buildWastedTimeBreakdownSection(DayAnalyticsData currentDay, bool isDark) {
+    // Gather metrics based on active period
+    final phoneWaste = _activePhoneWastedMinutes;
+    final otherWaste = _activeOtherWastedMinutes;
+    final totalWaste = _activeTotalWastedMinutes;
+    final sleepMins = _activeSleepMinutes;
+    final offlineProd = _activeOfflineProdMinutes;
+    final phoneProd = _activeProductiveMinutes;
+    final totalProd = offlineProd + phoneProd;
+    final elapsedMins = _activeElapsedMinutes > 0 ? _activeElapsedMinutes : 1440;
+    final topApps = _activeTopDistractingApps;
+
+    final wastePct = ((totalWaste / elapsedMins) * 100).clamp(0, 100).round();
+    final phonePctOfWaste = totalWaste > 0 ? ((phoneWaste / totalWaste) * 100).round() : 0;
+    final otherPctOfWaste = totalWaste > 0 ? ((otherWaste / totalWaste) * 100).round() : 0;
+
+    // Severity indicator
+    String severityLabel;
+    Color severityColor;
+    if (totalWaste <= 90) {
+      severityLabel = 'Minimal Waste';
+      severityColor = AppColors.success;
+    } else if (totalWaste <= 240) {
+      severityLabel = 'Moderate Waste';
+      severityColor = AppColors.warning;
+    } else {
+      severityLabel = 'High Time Waste';
+      severityColor = AppColors.danger;
+    }
+
+    // Dynamic advice
+    String smartAdviceTitle;
+    String smartAdviceBody;
+    IconData smartAdviceIcon;
+    Color smartAdviceColor;
+
+    if (totalWaste <= 60) {
+      smartAdviceTitle = 'Great Discipline! (විශිෂ්ටයි!)';
+      smartAdviceBody = 'ඔබේ දවසේ නාස්ති වූ කාලය ඉතා අවම මට්ටමක පවතී. නියමිත ඉලක්ක වෙත දිගටම අවධානය යොමු කරන්න.';
+      smartAdviceIcon = Icons.check_circle_rounded;
+      smartAdviceColor = AppColors.success;
+    } else if (phoneWaste >= otherWaste) {
+      final topAppName = topApps.isNotEmpty ? topApps.first.appName : 'Social Apps';
+      smartAdviceTitle = 'Phone Distraction Alert (දුරකථන භාවිතය වැඩියි)';
+      smartAdviceBody = 'අද දවසේ වැඩිම කාලයක් නාස්ති වී ඇත්තේ $topAppName ඇතුළු දුරකථන Apps වලටයි ($phoneWaste m). App Blocker හෝ Daily Limit එකක් යොදන්න.';
+      smartAdviceIcon = Icons.phone_android_rounded;
+      smartAdviceColor = AppColors.danger;
+    } else {
+      smartAdviceTitle = 'Offline Idle & Procrastination (අනෙකුත් නාස්තිය වැඩියි)';
+      smartAdviceBody = 'දුරකථනයට වඩා සැලසුම් නොකළ Off-screen idle / පසුබට කාලය වැඩියි ($otherWaste m). Time Planner එකේ කුඩා tasks කලින් කාලසටහන්ගත කරන්න.';
+      smartAdviceIcon = Icons.timelapse_rounded;
+      smartAdviceColor = AppColors.warning;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.surface(context),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: (totalWaste > 240 ? AppColors.danger : AppColors.warning).withValues(alpha: 0.35),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: (totalWaste > 240 ? AppColors.danger : AppColors.warning).withValues(alpha: 0.08),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Section Header Row
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color: (totalWaste > 240 ? AppColors.danger : AppColors.warning).withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.hourglass_bottom_rounded,
+                  size: 20,
+                  color: totalWaste > 240 ? AppColors.danger : AppColors.warning,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'Time Loss Breakdown',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimaryColor(context),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '(නාස්ති වූ කාලය)',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textSecondaryColor(context),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      'Phone screen vs offline / untracked idle',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textMutedColor(context),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: severityColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: severityColor.withValues(alpha: 0.35)),
+                ),
+                child: Text(
+                  severityLabel,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: severityColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Total Wasted Big Highlight Bar
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: isDark
+                    ? [const Color(0xFF2C1E20), const Color(0xFF1E1E28)]
+                    : [const Color(0xFFFFF0F0), const Color(0xFFFFF8E7)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: (totalWaste > 240 ? AppColors.danger : AppColors.warning).withValues(alpha: 0.25),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Total Wasted Today',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondaryColor(context),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _formatTime(totalWaste),
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.bold,
+                          color: totalWaste > 240 ? AppColors.danger : AppColors.warning,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  height: 38,
+                  width: 1,
+                  color: AppColors.cardBorder(context),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Day Loss Ratio',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondaryColor(context),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '$wastePct%',
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimaryColor(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Two Pillars: Phone Waste vs Other/Offline Waste
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Pillar 1: Phone Waste (දුරකථනයට)
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppColors.danger.withValues(alpha: isDark ? 0.12 : 0.06),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: AppColors.danger.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(Icons.phone_android_rounded, size: 16, color: AppColors.danger),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Phone Waste',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.danger,
+                                  ),
+                                ),
+                                Text(
+                                  'දුරකථනයට ($phonePctOfWaste%)',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    color: AppColors.textSecondaryColor(context),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        _formatTime(phoneWaste),
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.danger,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Distracting apps & feeds',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: AppColors.textMutedColor(context),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Top 3 Distracting Phone Apps
+                      if (topApps.isNotEmpty) ...[
+                        Text(
+                          'Top Distractions:',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textSecondaryColor(context),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        ...topApps.take(3).map((app) => Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: Row(
+                                children: [
+                                  AppIconWidget(
+                                    packageName: app.packageName,
+                                    appName: app.appName,
+                                    initialIcon: app.appIcon,
+                                    size: 18,
+                                    borderRadius: 4,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      app.appName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.textPrimaryColor(context),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    _formatTime(app.durationMinutes),
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.danger,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )),
+                      ] else ...[
+                        Text(
+                          'No distracting apps! 🎉',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontStyle: FontStyle.italic,
+                            color: AppColors.textMutedColor(context),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+
+              // Pillar 2: Other / Offline Waste (අනෙකුත් දේට)
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppColors.warning.withValues(alpha: isDark ? 0.12 : 0.06),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: AppColors.warning.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(Icons.timelapse_rounded, size: 16, color: AppColors.warning),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Other Waste',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.warning,
+                                  ),
+                                ),
+                                Text(
+                                  'අනෙකුත් දේට ($otherPctOfWaste%)',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    color: AppColors.textSecondaryColor(context),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        _formatTime(otherWaste),
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.warning,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Off-screen idle & untracked',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: AppColors.textMutedColor(context),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Off-screen math breakdown
+                      Text(
+                        'Calculation Context:',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textSecondaryColor(context),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      _buildMiniInfoRow(
+                        'Active Day:',
+                        _formatTime(elapsedMins),
+                        AppColors.textSecondaryColor(context),
+                      ),
+                      _buildMiniInfoRow(
+                        'Sleep & Rest:',
+                        _formatTime(sleepMins),
+                        const Color(0xFF6C5CE7),
+                      ),
+                      _buildMiniInfoRow(
+                        'Productive Work:',
+                        _formatTime(totalProd),
+                        AppColors.success,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+
+          // 24-Hour Day Balance Multi-Segment Progress Bar
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Day Time Allocation (දවසේ බෙදී යාම)',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimaryColor(context),
+                ),
+              ),
+              Text(
+                _formatTime(elapsedMins),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textMutedColor(context),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // Multi-Segment Rounded Bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              height: 12,
+              color: AppColors.surfaceVariant(context),
+              child: Row(
+                children: [
+                  if (totalProd > 0)
+                    Flexible(
+                      flex: totalProd,
+                      child: Container(
+                        color: AppColors.success,
+                      ),
+                    ),
+                  if (sleepMins > 0)
+                    Flexible(
+                      flex: sleepMins,
+                      child: Container(
+                        color: const Color(0xFF6C5CE7),
+                      ),
+                    ),
+                  if (phoneWaste > 0)
+                    Flexible(
+                      flex: phoneWaste,
+                      child: Container(
+                        color: AppColors.danger,
+                      ),
+                    ),
+                  if (otherWaste > 0)
+                    Flexible(
+                      flex: otherWaste,
+                      child: Container(
+                        color: AppColors.warning,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // 4-Item Legend Grid
+          Wrap(
+            spacing: 12,
+            runSpacing: 6,
+            children: [
+              _buildBarLegendItem(AppColors.success, 'Productive: ${_formatTime(totalProd)}'),
+              _buildBarLegendItem(const Color(0xFF6C5CE7), 'Sleep: ${_formatTime(sleepMins)}'),
+              _buildBarLegendItem(AppColors.danger, 'Phone Waste: ${_formatTime(phoneWaste)}'),
+              _buildBarLegendItem(AppColors.warning, 'Other Waste: ${_formatTime(otherWaste)}'),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Smart Sinhala Advice Box
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            decoration: BoxDecoration(
+              color: smartAdviceColor.withValues(alpha: isDark ? 0.14 : 0.08),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: smartAdviceColor.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(smartAdviceIcon, size: 20, color: smartAdviceColor),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        smartAdviceTitle,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: smartAdviceColor,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        smartAdviceBody,
+                        style: TextStyle(
+                          fontSize: 11,
+                          height: 1.35,
+                          color: AppColors.textPrimaryColor(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMiniInfoRow(String label, String value, Color valColor) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 3),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              color: AppColors.textSecondaryColor(context),
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: valColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBarLegendItem(Color dotColor, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 7,
+          height: 7,
+          decoration: BoxDecoration(
+            color: dotColor,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 5),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textSecondaryColor(context),
+          ),
+        ),
+      ],
+    );
+  }
   Widget _buildCategoryCard({
     required String category,
     required int minutes,
@@ -2548,6 +3323,203 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                     color: AppColors.accentCyan,
                   ),
                 ],
+              ),
+              const SizedBox(height: 18),
+
+              // Day's Time Loss & Wasted Breakdown Card
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceVariant(context),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: (day.totalWastedMinutes > 240 ? AppColors.danger : AppColors.warning)
+                        .withValues(alpha: 0.35),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.hourglass_bottom_rounded,
+                          size: 18,
+                          color: day.totalWastedMinutes > 240 ? AppColors.danger : AppColors.warning,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Wasted Time Breakdown (නාස්ති වූ කාලය)',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimaryColor(context),
+                            ),
+                          ),
+                        ),
+                        Text(
+                          _formatTime(day.totalWastedMinutes),
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: day.totalWastedMinutes > 240 ? AppColors.danger : AppColors.warning,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: AppColors.danger.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.danger.withValues(alpha: 0.25)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Row(
+                                  children: [
+                                    Icon(Icons.phone_android_rounded, size: 14, color: AppColors.danger),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      'Phone Waste',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.danger,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  _formatTime(day.phoneWastedMinutes),
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.danger,
+                                  ),
+                                ),
+                                Text(
+                                  'Social & Games',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    color: AppColors.textMutedColor(context),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: AppColors.warning.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.warning.withValues(alpha: 0.25)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Row(
+                                  children: [
+                                    Icon(Icons.timelapse_rounded, size: 14, color: AppColors.warning),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      'Other Waste',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.warning,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  _formatTime(day.otherWastedMinutes),
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.warning,
+                                  ),
+                                ),
+                                Text(
+                                  'Offline idle / untracked',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    color: AppColors.textMutedColor(context),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (day.topDistractingApps.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        'Top Phone Distractions on this date:',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textSecondaryColor(context),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: day.topDistractingApps.take(3).map((app) => Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface(context),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.cardBorder(context)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              AppIconWidget(
+                                packageName: app.packageName,
+                                appName: app.appName,
+                                initialIcon: app.appIcon,
+                                size: 14,
+                                borderRadius: 3,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                app.appName,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimaryColor(context),
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                _formatTime(app.durationMinutes),
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.danger,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )).toList(),
+                      ),
+                    ],
+                  ],
+                ),
               ),
               const SizedBox(height: 18),
 
