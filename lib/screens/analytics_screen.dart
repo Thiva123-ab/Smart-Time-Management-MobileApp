@@ -2295,19 +2295,19 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     Color smartAdviceColor;
 
     if (totalWaste <= 60) {
-      smartAdviceTitle = 'Great Discipline! (විශිෂ්ටයි!)';
-      smartAdviceBody = 'ඔබේ දවසේ නාස්ති වූ කාලය ඉතා අවම මට්ටමක පවතී. නියමිත ඉලක්ක වෙත දිගටම අවධානය යොමු කරන්න.';
+      smartAdviceTitle = 'Great Discipline!';
+      smartAdviceBody = 'Your wasted time today is kept at a minimum. Excellent focus and control!';
       smartAdviceIcon = Icons.check_circle_rounded;
       smartAdviceColor = AppColors.success;
     } else if (phoneWaste >= otherWaste) {
       final topAppName = topApps.isNotEmpty ? topApps.first.appName : 'Social Apps';
-      smartAdviceTitle = 'Phone Distraction Alert (දුරකථන භාවිතය වැඩියි)';
-      smartAdviceBody = 'අද දවසේ වැඩිම කාලයක් නාස්ති වී ඇත්තේ $topAppName ඇතුළු දුරකථන Apps වලටයි ($phoneWaste m). App Blocker හෝ Daily Limit එකක් යොදන්න.';
+      smartAdviceTitle = 'High Phone Distraction';
+      smartAdviceBody = 'Most wasted time was spent on $topAppName and distracting apps ($phoneWaste m). Consider setting app limits or turning on Focus Mode.';
       smartAdviceIcon = Icons.phone_android_rounded;
       smartAdviceColor = AppColors.danger;
     } else {
-      smartAdviceTitle = 'Offline Idle & Procrastination (අනෙකුත් නාස්තිය වැඩියි)';
-      smartAdviceBody = 'දුරකථනයට වඩා සැලසුම් නොකළ Off-screen idle / පසුබට කාලය වැඩියි ($otherWaste m). Time Planner එකේ කුඩා tasks කලින් කාලසටහන්ගත කරන්න.';
+      smartAdviceTitle = 'High Offline Idle Time';
+      smartAdviceBody = 'A significant amount of off-screen idle time was detected ($otherWaste m). Scheduling quick time blocks in the Planner can keep you on track.';
       smartAdviceIcon = Icons.timelapse_rounded;
       smartAdviceColor = AppColors.warning;
     }
@@ -2352,29 +2352,20 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Text(
-                          'Time Loss Breakdown',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimaryColor(context),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '(නාස්ති වූ කාලය)',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textSecondaryColor(context),
-                          ),
-                        ),
-                      ],
+                    Text(
+                      'Time Loss Breakdown',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimaryColor(context),
+                      ),
                     ),
                     Text(
-                      'Phone screen vs offline / untracked idle',
+                      'Phone screen vs offline idle',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 11,
                         color: AppColors.textMutedColor(context),
@@ -2484,7 +2475,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Pillar 1: Phone Waste (දුරකථනයට)
+              // Pillar 1: Phone Waste (Screen)
               Expanded(
                 child: Container(
                   padding: const EdgeInsets.all(14),
@@ -2520,7 +2511,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                                   ),
                                 ),
                                 Text(
-                                  'දුරකථනයට ($phonePctOfWaste%)',
+                                  'Screen ($phonePctOfWaste%)',
                                   style: TextStyle(
                                     fontSize: 9,
                                     color: AppColors.textSecondaryColor(context),
@@ -2613,7 +2604,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               ),
               const SizedBox(width: 12),
 
-              // Pillar 2: Other / Offline Waste (අනෙකුත් දේට)
+              // Pillar 2: Other / Offline Waste (Off-screen)
               Expanded(
                 child: Container(
                   padding: const EdgeInsets.all(14),
@@ -2649,7 +2640,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                                   ),
                                 ),
                                 Text(
-                                  'අනෙකුත් දේට ($otherPctOfWaste%)',
+                                  'Offline ($otherPctOfWaste%)',
                                   style: TextStyle(
                                     fontSize: 9,
                                     color: AppColors.textSecondaryColor(context),
@@ -2717,7 +2708,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Day Time Allocation (දවසේ බෙදී යාම)',
+                'Day Time Allocation',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
@@ -3350,7 +3341,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Wasted Time Breakdown (නාස්ති වූ කාලය)',
+                            'Wasted Time Breakdown',
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
