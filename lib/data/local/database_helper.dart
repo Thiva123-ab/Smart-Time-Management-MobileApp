@@ -9,6 +9,7 @@ import '../models/daily_score.dart';
 import '../models/time_block.dart';
 import '../models/time_sub_task.dart';
 import '../models/daily_note.dart';
+import '../models/daily_habit_activity.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -648,6 +649,173 @@ class DatabaseHelper {
     }
 
     return dates;
+  }
+
+  /// Fetches aggregated daily habit activity and computes streaks for a trailing window of days.
+  Future<HabitHeatmapStats> getHabitHeatmapStats({int daysCount = 30}) async {
+    final db = await instance.database;
+    final now = DateTime.now();
+    final startDateDt = now.subtract(Duration(days: daysCount - 1));
+
+    String formatDate(DateTime dt) {
+      final y = dt.year.toString().padLeft(4, '0');
+      final m = dt.month.toString().padLeft(2, '0');
+      final d = dt.day.toString().padLeft(2, '0');
+      return '$y-$m-$d';
+    }
+
+    final startDate = formatDate(startDateDt);
+    final endDate = formatDate(now);
+
+    final focusMap = <String, int>{};
+    final blocksMap = <String, int>{};
+    final goalsMap = <String, int>{};
+    final scoresMap = <String, int>{};
+    final prodUsageMap = <String, int>{};
+
+    try {
+      // 1. Focus sessions
+      final focusRows = await db.rawQuery(
+        'SELECT date, SUM(durationMinutes) as totalMins FROM focus_sessions WHERE completed = 1 AND date BETWEEN ? AND ? GROUP BY date',
+        [startDate, endDate],
+      );
+      for (final r in focusRows) {
+        final d = r['date'] as String?;
+        final m = (r['totalMins'] as num?)?.toInt() ?? 0;
+        if (d != null) focusMap[d] = m;
+      }
+
+      // 2. Completed Time Blocks
+      final blockRows = await db.rawQuery(
+        'SELECT date, COUNT(*) as count FROM time_blocks WHERE isCompleted = 1 AND date BETWEEN ? AND ? GROUP BY date',
+        [startDate, endDate],
+      );
+      for (final r in blockRows) {
+        final d = r['date'] as String?;
+        final c = (r['count'] as num?)?.toInt() ?? 0;
+        if (d != null) blocksMap[d] = c;
+      }
+
+      // 3. Completed Goals
+      final goalRows = await db.rawQuery(
+        "SELECT date, COUNT(*) as count FROM goals WHERE status = 'COMPLETED' AND date BETWEEN ? AND ? GROUP BY date",
+        [startDate, endDate],
+      );
+      for (final r in goalRows) {
+        final d = r['date'] as String?;
+        final c = (r['count'] as num?)?.toInt() ?? 0;
+        if (d != null) goalsMap[d] = c;
+      }
+
+      // 4. Daily scores
+      final scoreRows = await db.rawQuery(
+        'SELECT date, score FROM daily_scores WHERE date BETWEEN ? AND ?',
+        [startDate, endDate],
+      );
+      for (final r in scoreRows) {
+        final d = r['date'] as String?;
+        final s = (r['score'] as num?)?.toInt() ?? 0;
+        if (d != null) scoresMap[d] = s;
+      }
+
+      // 5. Productive app usage
+      final usageRows = await db.rawQuery(
+        "SELECT date, SUM(durationMinutes) as prodMins FROM app_usage WHERE category IN ('Productivity', 'Education', 'Work', 'Study') AND date BETWEEN ? AND ? GROUP BY date",
+        [startDate, endDate],
+      );
+      for (final r in usageRows) {
+        final d = r['date'] as String?;
+        final m = (r['prodMins'] as num?)?.toInt() ?? 0;
+        if (d != null) prodUsageMap[d] = m;
+      }
+    } catch (e) {
+      debugPrint('Error gathering habit heatmap stats: $e');
+    }
+
+    final activityMap = <String, DailyHabitActivity>{};
+    int totalFocusMinutes = 0;
+    int activeDaysCount = 0;
+    int scoreSum = 0;
+    int scoredDays = 0;
+
+    final dateList = <String>[];
+    for (int i = daysCount - 1; i >= 0; i--) {
+      final dt = now.subtract(Duration(days: i));
+      final dStr = formatDate(dt);
+      dateList.add(dStr);
+
+      final fMins = focusMap[dStr] ?? 0;
+      final cBlocks = blocksMap[dStr] ?? 0;
+      final cGoals = goalsMap[dStr] ?? 0;
+      final dScore = scoresMap[dStr] ?? 0;
+      final pUsage = prodUsageMap[dStr] ?? 0;
+
+      final activity = DailyHabitActivity(
+        date: dStr,
+        focusMinutes: fMins,
+        completedTasks: cBlocks,
+        completedGoals: cGoals,
+        productivityScore: dScore,
+        productiveAppMinutes: pUsage,
+      );
+
+      activityMap[dStr] = activity;
+      totalFocusMinutes += fMins;
+      if (activity.hasActivity) {
+        activeDaysCount++;
+      }
+      if (dScore > 0) {
+        scoreSum += dScore;
+        scoredDays++;
+      }
+    }
+
+    // Calculate current streak
+    final todayStr = formatDate(now);
+    final yesterdayStr = formatDate(now.subtract(const Duration(days: 1)));
+    int currentStreak = 0;
+
+    final hasTodayActivity = activityMap[todayStr]?.hasActivity ?? false;
+    final startIdx = hasTodayActivity
+        ? dateList.indexOf(todayStr)
+        : dateList.indexOf(yesterdayStr);
+
+    if (startIdx >= 0) {
+      for (int i = startIdx; i >= 0; i--) {
+        final dStr = dateList[i];
+        if (activityMap[dStr]?.hasActivity ?? false) {
+          currentStreak++;
+        } else {
+          break;
+        }
+      }
+    }
+
+    // Calculate longest streak
+    int longestStreak = 0;
+    int tempStreak = 0;
+    for (final dStr in dateList) {
+      if (activityMap[dStr]?.hasActivity ?? false) {
+        tempStreak++;
+        if (tempStreak > longestStreak) {
+          longestStreak = tempStreak;
+        }
+      } else {
+        tempStreak = 0;
+      }
+    }
+
+    final avgScore = scoredDays > 0 ? (scoreSum / scoredDays) : 0.0;
+
+    return HabitHeatmapStats(
+      activityMap: activityMap,
+      totalDays: daysCount,
+      activeDaysCount: activeDaysCount,
+      currentStreak: currentStreak,
+      longestStreak: longestStreak,
+      totalFocusMinutes: totalFocusMinutes,
+      averageDailyScore: avgScore,
+    );
   }
 
   // Clear data
