@@ -7,6 +7,8 @@ import '../data/models/focus_session.dart';
 import '../domain/pomodoro_engine.dart';
 import '../services/usage_tracking_service.dart';
 import '../services/urgent_task_tracking_service.dart';
+import '../services/focus_audio_service.dart';
+import '../widgets/ambient_sound_player_sheet.dart';
 
 class FocusScreen extends StatefulWidget {
   final String? initialTask;
@@ -141,6 +143,7 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
 
   Future<void> _resetFocusSession() async {
     _focusTimer?.cancel();
+    FocusAudioService.instance.stop();
     setState(() {
       _isFocusActive = false;
       _isFocusPaused = false;
@@ -174,6 +177,7 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
 
   Future<void> _finishFocusSession(bool completed) async {
     _focusTimer?.cancel();
+    FocusAudioService.instance.stop();
     final duration = (_focusElapsedSeconds ~/ 60).clamp(1, 999);
     final now = DateTime.now().millisecondsSinceEpoch;
 
@@ -566,27 +570,78 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
                         ),
                       ],
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface(context),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.cardBorder(context)),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.shield_outlined, color: isDark ? AppColors.accentCyan : AppColors.primary, size: 16),
-                          const SizedBox(width: 4),
-                          Text(
-                            'DND Mode',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: isDark ? AppColors.accentCyan : AppColors.primary,
-                              fontWeight: FontWeight.bold,
-                            ),
+                    Row(
+                      children: [
+                        Consumer<FocusAudioService>(
+                          builder: (context, audio, _) {
+                            final isPlaying = audio.isPlaying;
+                            return InkWell(
+                              onTap: () => AmbientSoundPlayerSheet.show(context),
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: isPlaying
+                                      ? (isDark ? AppColors.accentCyan.withValues(alpha: 0.2) : AppColors.primary.withValues(alpha: 0.12))
+                                      : AppColors.surface(context),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: isPlaying
+                                        ? (isDark ? AppColors.accentCyan : AppColors.primary)
+                                        : AppColors.cardBorder(context),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      isPlaying ? Icons.graphic_eq_rounded : Icons.headphones_rounded,
+                                      color: isPlaying
+                                          ? (isDark ? AppColors.accentCyan : AppColors.primary)
+                                          : AppColors.textSecondaryColor(context),
+                                      size: 16,
+                                    ),
+                                    const SizedBox(width: 5),
+                                    Text(
+                                      isPlaying ? (audio.activeTrack?.name ?? 'Playing') : 'Sound',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: isPlaying
+                                            ? (isDark ? AppColors.accentCyan : AppColors.primary)
+                                            : AppColors.textPrimaryColor(context),
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface(context),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.cardBorder(context)),
                           ),
-                        ],
-                      ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.shield_outlined, color: isDark ? AppColors.accentCyan : AppColors.primary, size: 16),
+                              const SizedBox(width: 4),
+                              Text(
+                                'DND Mode',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: isDark ? AppColors.accentCyan : AppColors.primary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

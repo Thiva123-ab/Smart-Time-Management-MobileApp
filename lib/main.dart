@@ -10,6 +10,7 @@ import 'services/transport_tracking_service.dart';
 import 'services/urgent_task_tracking_service.dart';
 import 'services/sleep_tracking_service.dart';
 import 'services/bedtime_routine_service.dart';
+import 'services/focus_audio_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,6 +19,7 @@ void main() async {
   await UrgentTaskTrackingService.instance.init();
   await SleepTrackingService.instance.init();
   await BedtimeRoutineService.instance.init();
+  await FocusAudioService.instance.init();
   // Request Android runtime notification permission on startup
   UsageTrackingService.requestNotificationPermission();
   runApp(
@@ -28,6 +30,7 @@ void main() async {
         ChangeNotifierProvider.value(value: UrgentTaskTrackingService.instance),
         ChangeNotifierProvider.value(value: SleepTrackingService.instance),
         ChangeNotifierProvider.value(value: BedtimeRoutineService.instance),
+        ChangeNotifierProvider.value(value: FocusAudioService.instance),
       ],
       child: const FocusFlowApp(),
     ),
