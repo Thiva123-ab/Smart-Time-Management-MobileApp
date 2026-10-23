@@ -119,8 +119,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheetState) {
-          final isDark = Theme.of(context).brightness == Brightness.dark;
-
           return Container(
             constraints: BoxConstraints(
               maxHeight: MediaQuery.of(ctx).size.height * 0.92,
@@ -144,7 +142,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     height: 4,
                     margin: const EdgeInsets.only(bottom: 16),
                     decoration: BoxDecoration(
-                      color: Colors.grey.withOpacity(0.35),
+                      color: Colors.grey.withValues(alpha: 0.35),
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
@@ -157,7 +155,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: AppColors.primary.withOpacity(0.12),
+                            color: AppColors.primary.withValues(alpha: 0.12),
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(Icons.badge_rounded, color: AppColors.primary, size: 20),
@@ -209,7 +207,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 margin: const EdgeInsets.only(right: 10),
                                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                 decoration: BoxDecoration(
-                                  color: col.withOpacity(isSelected ? 0.25 : 0.08),
+                                  color: col.withValues(alpha: isSelected ? 0.25 : 0.08),
                                   borderRadius: BorderRadius.circular(16),
                                   border: Border.all(
                                     color: isSelected ? col : Colors.transparent,
@@ -364,7 +362,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: AppColors.primary.withOpacity(0.15),
+                                    color: AppColors.primary.withValues(alpha: 0.15),
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: Text(
@@ -382,7 +380,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               data: SliderTheme.of(context).copyWith(
                                 activeTrackColor: AppColors.primary,
                                 thumbColor: AppColors.accentCyan,
-                                overlayColor: AppColors.primary.withOpacity(0.2),
+                                overlayColor: AppColors.primary.withValues(alpha: 0.2),
                               ),
                               child: Slider(
                                 value: targetHours.toDouble(),
@@ -410,7 +408,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
                       elevation: 4,
-                      shadowColor: AppColors.primary.withOpacity(0.4),
+                      shadowColor: AppColors.primary.withValues(alpha: 0.4),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     ),
                     onPressed: () async {
@@ -432,7 +430,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       await updated.save();
                       await _loadProfileData();
 
-                      if (mounted) {
+                      if (ctx.mounted && mounted) {
                         Navigator.pop(ctx);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
@@ -586,12 +584,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   borderRadius: BorderRadius.circular(26),
                   border: Border.all(
-                    color: avatarColor.withOpacity(0.35),
+                    color: avatarColor.withValues(alpha: 0.35),
                     width: 1.5,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: avatarColor.withOpacity(0.12),
+                      color: avatarColor.withValues(alpha: 0.12),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     ),
@@ -612,10 +610,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             shape: BoxShape.circle,
                             gradient: SweepGradient(
                               colors: [
-                                avatarColor.withOpacity(0.2),
+                                avatarColor.withValues(alpha: 0.2),
                                 avatarColor,
                                 AppColors.accentCyan,
-                                avatarColor.withOpacity(0.2),
+                                avatarColor.withValues(alpha: 0.2),
                               ],
                             ),
                           ),
@@ -701,9 +699,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: avatarColor.withOpacity(0.14),
+                            color: avatarColor.withValues(alpha: 0.14),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: avatarColor.withOpacity(0.3)),
+                            border: Border.all(color: avatarColor.withValues(alpha: 0.3)),
                           ),
                           child: Text(
                             _profile.role,
@@ -768,9 +766,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       decoration: BoxDecoration(
-                        color: AppColors.surfaceVariant(context).withOpacity(0.5),
+                        color: AppColors.surfaceVariant(context).withValues(alpha: 0.5),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.cardBorder(context).withOpacity(0.5)),
+                        border: Border.all(color: AppColors.cardBorder(context).withValues(alpha: 0.5)),
                       ),
                       child: Text(
                         '“${_profile.bio}”',
@@ -789,7 +787,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: AppColors.surface(context).withOpacity(0.8),
+                        color: AppColors.surface(context).withValues(alpha: 0.8),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(color: AppColors.cardBorder(context)),
                       ),
@@ -1107,7 +1105,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.12),
+                color: iconColor.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
               child: Icon(icon, color: iconColor, size: 18),
@@ -1170,7 +1168,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.15),
+                color: color.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(icon, color: color, size: 18),
@@ -1234,7 +1232,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           border: Border.all(color: AppColors.cardBorder(context)),
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(0.06),
+              color: color.withValues(alpha: 0.06),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -1249,7 +1247,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.12),
+                    color: color.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(icon, color: color, size: 20),
@@ -1310,7 +1308,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         leading: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: AppColors.primary.withOpacity(0.12),
+            color: AppColors.primary.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Icon(icon, color: AppColors.primary, size: 20),
