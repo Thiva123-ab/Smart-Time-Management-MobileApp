@@ -64,6 +64,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         return Icons.self_improvement;
       case 5:
         return Icons.local_fire_department;
+      case 6:
+        return Icons.palette_rounded;
+      case 7:
+        return Icons.shield_rounded;
       default:
         return Icons.person;
     }

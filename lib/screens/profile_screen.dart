@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
 import '../data/local/database_helper.dart';
 import '../data/models/user_profile.dart';
@@ -17,9 +18,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     name: 'Focus User',
     role: 'Productivity Enthusiast',
     email: 'user@focusflow.app',
-    bio: 'Focusing on building better daily habits and managing time effectively.',
+    bio: 'Dedicated to high performance, continuous learning, and mindful digital habits.',
     dailyTargetHours: 4,
     avatarIndex: 0,
+    phoneNumber: '+94 77 123 4567',
+    location: 'Colombo, Sri Lanka',
+    occupationField: 'Software & Tech',
+    linkedinUrl: 'linkedin.com/in/focususer',
+    githubUrl: 'github.com/focususer',
+    portfolioUrl: 'focusflow.app/me',
+    joinedDate: 'Oct 2026',
   );
 
   int _totalFocusMinutes = 0;
@@ -28,12 +36,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isLoading = true;
 
   final List<Map<String, dynamic>> _avatarPresets = [
-    {'icon': Icons.rocket_launch, 'label': 'Explorer', 'color': Color(0xFF6C5CE7)},
-    {'icon': Icons.code_rounded, 'label': 'Developer', 'color': Color(0xFF00CEC9)},
-    {'icon': Icons.school, 'label': 'Scholar', 'color': Color(0xFF0984E3)},
-    {'icon': Icons.bolt, 'label': 'Flow State', 'color': Color(0xFFFFA502)},
-    {'icon': Icons.self_improvement, 'label': 'Zen', 'color': Color(0xFF00B894)},
-    {'icon': Icons.local_fire_department, 'label': 'Performer', 'color': Color(0xFFFD79A8)},
+    {'icon': Icons.rocket_launch, 'label': 'Explorer', 'color': const Color(0xFF6C5CE7)},
+    {'icon': Icons.code_rounded, 'label': 'Architect', 'color': const Color(0xFF00CEC9)},
+    {'icon': Icons.school, 'label': 'Scholar', 'color': const Color(0xFF0984E3)},
+    {'icon': Icons.bolt, 'label': 'Flow State', 'color': const Color(0xFFFFA502)},
+    {'icon': Icons.self_improvement, 'label': 'Zen Sage', 'color': const Color(0xFF00B894)},
+    {'icon': Icons.local_fire_department, 'label': 'Performer', 'color': const Color(0xFFFD79A8)},
+    {'icon': Icons.palette_rounded, 'label': 'Creative', 'color': const Color(0xFFE056FD)},
+    {'icon': Icons.shield_rounded, 'label': 'Strategist', 'color': const Color(0xFFF0932B)},
   ];
 
   @override
@@ -52,20 +62,54 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final achievements = await db.getAllAchievements();
     final unlockedCount = achievements.where((a) => a.isUnlocked).length;
 
-    setState(() {
-      _profile = profile;
-      _totalFocusMinutes = focusMin;
-      _completedGoalsCount = goalsCount;
-      _unlockedBadgesCount = unlockedCount;
-      _isLoading = false;
-    });
+    if (mounted) {
+      setState(() {
+        _profile = profile;
+        _totalFocusMinutes = focusMin;
+        _completedGoalsCount = goalsCount;
+        _unlockedBadgesCount = unlockedCount;
+        _isLoading = false;
+      });
+    }
+  }
+
+  int get _userLevel => (_totalFocusMinutes ~/ 120) + 1;
+  double get _levelProgress => (_totalFocusMinutes % 120) / 120.0;
+
+  String get _levelTitle {
+    final lvl = _userLevel;
+    if (lvl <= 2) return 'Novice Practitioner';
+    if (lvl <= 5) return 'Focus Enthusiast';
+    if (lvl <= 9) return 'Deep Work Specialist';
+    return 'Master of Focus';
+  }
+
+  void _copyToClipboard(String text, String label) {
+    if (text.trim().isEmpty) return;
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$label copied to clipboard!'),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+        backgroundColor: AppColors.primary,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
   }
 
   void _showEditProfileSheet() {
     final nameController = TextEditingController(text: _profile.name);
     final roleController = TextEditingController(text: _profile.role);
+    final occupationController = TextEditingController(text: _profile.occupationField);
     final emailController = TextEditingController(text: _profile.email);
+    final phoneController = TextEditingController(text: _profile.phoneNumber);
+    final locationController = TextEditingController(text: _profile.location);
     final bioController = TextEditingController(text: _profile.bio);
+    final linkedinController = TextEditingController(text: _profile.linkedinUrl);
+    final githubController = TextEditingController(text: _profile.githubUrl);
+    final portfolioController = TextEditingController(text: _profile.portfolioUrl);
+
     int selectedAvatar = _profile.avatarIndex;
     int targetHours = _profile.dailyTargetHours;
 
@@ -78,6 +122,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           final isDark = Theme.of(context).brightness == Brightness.dark;
 
           return Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(ctx).size.height * 0.92,
+            ),
             padding: EdgeInsets.only(
               bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
               top: 20,
@@ -87,223 +134,329 @@ class _ProfileScreenState extends State<ProfileScreen> {
             decoration: BoxDecoration(
               color: AppColors.surface(context),
               borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              border: Border.all(color: AppColors.cardBorder(context)),
             ),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      margin: const EdgeInsets.only(bottom: 16),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
+            child: Column(
+              children: [
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withOpacity(0.35),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Edit Profile',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimaryColor(context),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        icon: const Icon(Icons.close),
-                        color: AppColors.textMutedColor(context),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-
-                  // Choose Avatar
-                  Text(
-                    'Choose Avatar Badge',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textSecondaryColor(context),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: List.generate(_avatarPresets.length, (idx) {
-                      final item = _avatarPresets[idx];
-                      final isSelected = selectedAvatar == idx;
-                      final col = item['color'] as Color;
-
-                      return GestureDetector(
-                        onTap: () => setSheetState(() => selectedAvatar = idx),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.all(10),
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: col.withOpacity(isSelected ? 0.25 : 0.1),
+                            color: AppColors.primary.withOpacity(0.12),
                             shape: BoxShape.circle,
-                            border: Border.all(
-                              color: isSelected ? col : Colors.transparent,
-                              width: 2.5,
-                            ),
                           ),
-                          child: Icon(
-                            item['icon'] as IconData,
-                            color: col,
-                            size: 22,
+                          child: const Icon(Icons.badge_rounded, color: AppColors.primary, size: 20),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Edit Professional Profile',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimaryColor(context),
                           ),
                         ),
-                      );
-                    }),
-                  ),
-                  const SizedBox(height: 18),
-
-                  // Name field
-                  TextField(
-                    controller: nameController,
-                    style: TextStyle(color: AppColors.textPrimaryColor(context)),
-                    decoration: InputDecoration(
-                      labelText: 'Your Name',
-                      hintText: 'e.g. Alex Silva',
-                      prefixIcon: const Icon(Icons.person_outline, color: AppColors.primary),
-                      labelStyle: TextStyle(color: AppColors.textSecondaryColor(context)),
-                      hintStyle: TextStyle(color: AppColors.textMutedColor(context)),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 14),
-
-                  // Role/Profession
-                  TextField(
-                    controller: roleController,
-                    style: TextStyle(color: AppColors.textPrimaryColor(context)),
-                    decoration: InputDecoration(
-                      labelText: 'Role / Occupation',
-                      hintText: 'e.g. Software Engineer or Student',
-                      prefixIcon: const Icon(Icons.badge_outlined, color: AppColors.primary),
-                      labelStyle: TextStyle(color: AppColors.textSecondaryColor(context)),
-                      hintStyle: TextStyle(color: AppColors.textMutedColor(context)),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                    IconButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      icon: const Icon(Icons.close_rounded),
+                      color: AppColors.textMutedColor(context),
                     ),
-                  ),
-                  const SizedBox(height: 14),
-
-                  // Email
-                  TextField(
-                    controller: emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    style: TextStyle(color: AppColors.textPrimaryColor(context)),
-                    decoration: InputDecoration(
-                      labelText: 'Email Address',
-                      hintText: 'e.g. user@gmail.com',
-                      prefixIcon: const Icon(Icons.email_outlined, color: AppColors.primary),
-                      labelStyle: TextStyle(color: AppColors.textSecondaryColor(context)),
-                      hintStyle: TextStyle(color: AppColors.textMutedColor(context)),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-
-                  // Bio
-                  TextField(
-                    controller: bioController,
-                    maxLines: 2,
-                    style: TextStyle(color: AppColors.textPrimaryColor(context)),
-                    decoration: InputDecoration(
-                      labelText: 'Productivity Motto / Bio',
-                      hintText: 'e.g. Working deeply every single day.',
-                      prefixIcon: const Icon(Icons.format_quote_outlined, color: AppColors.primary),
-                      labelStyle: TextStyle(color: AppColors.textSecondaryColor(context)),
-                      hintStyle: TextStyle(color: AppColors.textMutedColor(context)),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-
-                  // Daily Target Hours
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Expanded(
+                  child: ListView(
                     children: [
+                      // Avatar Badge Picker
                       Text(
-                        'Daily Productivity Target',
+                        'Choose Avatar Identity',
                         style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
                           color: AppColors.textSecondaryColor(context),
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          '$targetHours Hours / Day',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: isDark ? AppColors.accentCyan : AppColors.primary,
-                          ),
+                      const SizedBox(height: 10),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: List.generate(_avatarPresets.length, (idx) {
+                            final item = _avatarPresets[idx];
+                            final isSelected = selectedAvatar == idx;
+                            final col = item['color'] as Color;
+
+                            return GestureDetector(
+                              onTap: () => setSheetState(() => selectedAvatar = idx),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                margin: const EdgeInsets.only(right: 10),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: col.withOpacity(isSelected ? 0.25 : 0.08),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: isSelected ? col : Colors.transparent,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: Column(
+                                  children: [
+                                    Icon(item['icon'] as IconData, color: col, size: 24),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      item['label'] as String,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                        color: isSelected ? col : AppColors.textSecondaryColor(context),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }),
                         ),
                       ),
+                      const SizedBox(height: 18),
+
+                      // Personal & Professional Fields
+                      _sectionTitle('Personal & Professional Identity'),
+                      const SizedBox(height: 8),
+                      _inputField(
+                        controller: nameController,
+                        label: 'Full Name',
+                        hint: 'e.g. Alex Henderson',
+                        icon: Icons.person_outline_rounded,
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _inputField(
+                              controller: roleController,
+                              label: 'Role / Designation',
+                              hint: 'e.g. Lead Engineer',
+                              icon: Icons.work_outline_rounded,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _inputField(
+                              controller: occupationController,
+                              label: 'Field / Industry',
+                              hint: 'e.g. Tech & AI',
+                              icon: Icons.domain_rounded,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      _inputField(
+                        controller: bioController,
+                        label: 'Bio / Executive Motto',
+                        hint: 'e.g. Deep Work Specialist & Continuous Learner',
+                        icon: Icons.format_quote_rounded,
+                        maxLines: 2,
+                      ),
+                      const SizedBox(height: 18),
+
+                      // Contact & Location Fields
+                      _sectionTitle('Contact & Location Details'),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _inputField(
+                              controller: emailController,
+                              label: 'Email Address',
+                              hint: 'user@focusflow.app',
+                              icon: Icons.email_outlined,
+                              keyboardType: TextInputType.emailAddress,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _inputField(
+                              controller: phoneController,
+                              label: 'Phone Number',
+                              hint: '+94 77 123 4567',
+                              icon: Icons.phone_outlined,
+                              keyboardType: TextInputType.phone,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      _inputField(
+                        controller: locationController,
+                        label: 'Location / Region',
+                        hint: 'e.g. Colombo, Sri Lanka',
+                        icon: Icons.location_on_outlined,
+                      ),
+                      const SizedBox(height: 18),
+
+                      // Social & Web Links
+                      _sectionTitle('Social & Professional Links'),
+                      const SizedBox(height: 8),
+                      _inputField(
+                        controller: linkedinController,
+                        label: 'LinkedIn Profile URL',
+                        hint: 'linkedin.com/in/username',
+                        icon: Icons.link_rounded,
+                      ),
+                      const SizedBox(height: 10),
+                      _inputField(
+                        controller: githubController,
+                        label: 'GitHub Profile URL',
+                        hint: 'github.com/username',
+                        icon: Icons.code_rounded,
+                      ),
+                      const SizedBox(height: 10),
+                      _inputField(
+                        controller: portfolioController,
+                        label: 'Portfolio / Website URL',
+                        hint: 'myportfolio.com',
+                        icon: Icons.language_rounded,
+                      ),
+                      const SizedBox(height: 18),
+
+                      // Daily Target Slider
+                      _sectionTitle('Daily Focus Commitment'),
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceVariant(context),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.cardBorder(context)),
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Daily Focus Hours Target',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimaryColor(context),
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary.withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    '$targetHours hrs/day',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SliderTheme(
+                              data: SliderTheme.of(context).copyWith(
+                                activeTrackColor: AppColors.primary,
+                                thumbColor: AppColors.accentCyan,
+                                overlayColor: AppColors.primary.withOpacity(0.2),
+                              ),
+                              child: Slider(
+                                value: targetHours.toDouble(),
+                                min: 1,
+                                max: 12,
+                                divisions: 11,
+                                onChanged: (val) {
+                                  setSheetState(() => targetHours = val.round());
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
                     ],
                   ),
-                  Slider(
-                    value: targetHours.toDouble(),
-                    min: 1,
-                    max: 12,
-                    divisions: 11,
-                    activeColor: AppColors.primary,
-                    inactiveColor: AppColors.surfaceVariant(context),
-                    label: '$targetHours hours',
-                    onChanged: (val) {
-                      setSheetState(() => targetHours = val.round());
-                    },
-                  ),
-                  const SizedBox(height: 20),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      elevation: 4,
+                      shadowColor: AppColors.primary.withOpacity(0.4),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    onPressed: () async {
+                      final updated = _profile.copyWith(
+                        name: nameController.text.trim().isEmpty ? 'Focus User' : nameController.text.trim(),
+                        role: roleController.text.trim().isEmpty ? 'Productivity Enthusiast' : roleController.text.trim(),
+                        occupationField: occupationController.text.trim().isEmpty ? 'General' : occupationController.text.trim(),
+                        email: emailController.text.trim().isEmpty ? 'user@focusflow.app' : emailController.text.trim(),
+                        phoneNumber: phoneController.text.trim(),
+                        location: locationController.text.trim().isEmpty ? 'Global' : locationController.text.trim(),
+                        bio: bioController.text.trim().isEmpty ? 'Focusing on building better daily habits.' : bioController.text.trim(),
+                        linkedinUrl: linkedinController.text.trim(),
+                        githubUrl: githubController.text.trim(),
+                        portfolioUrl: portfolioController.text.trim(),
+                        dailyTargetHours: targetHours,
+                        avatarIndex: selectedAvatar,
+                      );
 
-                  // Save Button
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
-                      onPressed: () async {
-                        final newProfile = _profile.copyWith(
-                          name: nameController.text.trim().isEmpty ? 'User' : nameController.text.trim(),
-                          role: roleController.text.trim().isEmpty ? 'Productivity Enthusiast' : roleController.text.trim(),
-                          email: emailController.text.trim().isEmpty ? 'user@focusflow.app' : emailController.text.trim(),
-                          bio: bioController.text.trim().isEmpty ? 'Focusing on building better daily habits.' : bioController.text.trim(),
-                          dailyTargetHours: targetHours,
-                          avatarIndex: selectedAvatar,
-                        );
+                      await updated.save();
+                      await _loadProfileData();
 
-                        await newProfile.save();
+                      if (mounted) {
                         Navigator.pop(ctx);
-                        _loadProfileData();
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Profile updated successfully!')),
-                          );
-                        }
-                      },
-                      child: const Text('Save Profile', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: const Row(
+                              children: [
+                                Icon(Icons.check_circle_rounded, color: Colors.white),
+                                SizedBox(width: 8),
+                                Text('Profile updated successfully!'),
+                              ],
+                            ),
+                            behavior: SnackBarBehavior.floating,
+                            backgroundColor: AppColors.success,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        );
+                      }
+                    },
+                    child: const Text(
+                      'Save Professional Profile',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           );
         },
@@ -311,9 +464,64 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget _sectionTitle(String title) {
+    return Text(
+      title,
+      style: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.bold,
+        color: AppColors.textSecondaryColor(context),
+      ),
+    );
+  }
+
+  Widget _inputField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required IconData icon,
+    int maxLines = 1,
+    TextInputType keyboardType = TextInputType.text,
+  }) {
+    return TextField(
+      controller: controller,
+      maxLines: maxLines,
+      keyboardType: keyboardType,
+      style: TextStyle(
+        fontSize: 13,
+        color: AppColors.textPrimaryColor(context),
+        fontWeight: FontWeight.w600,
+      ),
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        hintStyle: TextStyle(fontSize: 12, color: AppColors.textMutedColor(context)),
+        labelStyle: TextStyle(fontSize: 12, color: AppColors.textSecondaryColor(context)),
+        prefixIcon: Icon(icon, size: 18, color: AppColors.primary),
+        filled: true,
+        fillColor: AppColors.surfaceVariant(context),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: AppColors.cardBorder(context)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: AppColors.cardBorder(context)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+        ),
+      ),
+    );
+  }
+
   String _formatHours(int minutes) {
-    final h = (minutes / 60).toStringAsFixed(1);
-    return '${h}h';
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+    if (h > 0) return '${h}h ${m}m';
+    return '${m}m';
   }
 
   @override
@@ -333,9 +541,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       backgroundColor: AppColors.background(context),
       appBar: AppBar(
         title: Text(
-          'User Profile',
+          'Executive Profile',
           style: TextStyle(
             fontWeight: FontWeight.bold,
+            fontSize: 18,
             color: AppColors.textPrimaryColor(context),
           ),
         ),
@@ -357,139 +566,432 @@ class _ProfileScreenState extends State<ProfileScreen> {
           onRefresh: _loadProfileData,
           color: AppColors.accentCyan,
           child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
             children: [
-              // 1. Profile Hero Card
+              // 1. Ultra-Modern Glassmorphic Hero Card
               Container(
-                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: isDark
-                        ? [const Color(0xFF1F1C38), const Color(0xFF26204E)]
-                        : [const Color(0xFFEDE9FE), const Color(0xFFF5F3FF)],
+                        ? [
+                            const Color(0xFF1E1B38),
+                            const Color(0xFF141228),
+                          ]
+                        : [
+                            const Color(0xFFF3F0FF),
+                            const Color(0xFFFFFFFF),
+                          ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(26),
                   border: Border.all(
-                    color: AppColors.primary.withOpacity(0.3),
+                    color: avatarColor.withOpacity(0.35),
+                    width: 1.5,
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: avatarColor.withOpacity(0.12),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
                 ),
+                padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
+                    // Avatar & Level Ring
                     Stack(
-                      alignment: Alignment.bottomRight,
+                      alignment: Alignment.center,
                       children: [
+                        // Outer glowing aura
                         Container(
-                          padding: const EdgeInsets.all(18),
+                          width: 96,
+                          height: 96,
                           decoration: BoxDecoration(
-                            color: avatarColor.withOpacity(0.2),
+                            shape: BoxShape.circle,
+                            gradient: SweepGradient(
+                              colors: [
+                                avatarColor.withOpacity(0.2),
+                                avatarColor,
+                                AppColors.accentCyan,
+                                avatarColor.withOpacity(0.2),
+                              ],
+                            ),
+                          ),
+                        ),
+                        // Inner circle
+                        Container(
+                          width: 86,
+                          height: 86,
+                          decoration: BoxDecoration(
+                            color: AppColors.surface(context),
                             shape: BoxShape.circle,
                             border: Border.all(color: avatarColor, width: 2.5),
                           ),
                           child: Icon(
                             currentAvatar['icon'] as IconData,
-                            size: 46,
+                            size: 42,
                             color: avatarColor,
                           ),
                         ),
-                        Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: AppColors.success,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: AppColors.surface(context),
-                              width: 2,
+                        // Verified badge
+                        Positioned(
+                          bottom: 2,
+                          right: 2,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: AppColors.success,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: AppColors.surface(context),
+                                width: 2,
+                              ),
                             ),
+                            child: const Icon(Icons.verified_rounded, size: 14, color: Colors.white),
                           ),
-                          child: const Icon(Icons.bolt, size: 14, color: Colors.white),
                         ),
                       ],
                     ),
                     const SizedBox(height: 14),
-                    Text(
-                      _profile.name,
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimaryColor(context),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: avatarColor.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        _profile.role,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: avatarColor,
+
+                    // User Name & Pro Pill
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          _profile.name,
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: -0.3,
+                            color: AppColors.textPrimaryColor(context),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF6C5CE7), Color(0xFF00CEC9)],
+                            ),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            'PRO',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+
+                    // Role & Occupation Pill
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: avatarColor.withOpacity(0.14),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: avatarColor.withOpacity(0.3)),
+                          ),
+                          child: Text(
+                            _profile.role,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: avatarColor,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceVariant(context),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.cardBorder(context)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.domain_rounded, size: 12, color: AppColors.accentCyan),
+                              const SizedBox(width: 4),
+                              Text(
+                                _profile.occupationField,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textSecondaryColor(context),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      _profile.email,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textMutedColor(context),
-                      ),
+
+                    // Location & Member Info
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.location_on_outlined, size: 14, color: AppColors.textMutedColor(context)),
+                        const SizedBox(width: 4),
+                        Text(
+                          _profile.location,
+                          style: TextStyle(fontSize: 11, color: AppColors.textMutedColor(context)),
+                        ),
+                        const SizedBox(width: 10),
+                        Text('•', style: TextStyle(color: AppColors.textMutedColor(context))),
+                        const SizedBox(width: 10),
+                        Icon(Icons.calendar_today_outlined, size: 12, color: AppColors.textMutedColor(context)),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Since ${_profile.joinedDate}',
+                          style: TextStyle(fontSize: 11, color: AppColors.textMutedColor(context)),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 14),
-                    Text(
-                      '“${_profile.bio}”',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontStyle: FontStyle.italic,
-                        color: AppColors.textSecondaryColor(context),
+
+                    // Bio Quote Box
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceVariant(context).withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppColors.cardBorder(context).withOpacity(0.5)),
+                      ),
+                      child: Text(
+                        '“${_profile.bio}”',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 12,
+                          height: 1.35,
+                          fontStyle: FontStyle.italic,
+                          color: AppColors.textSecondaryColor(context),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: AppColors.primary.withOpacity(0.5)),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                        ),
-                        icon: const Icon(Icons.edit_outlined, size: 16, color: AppColors.primary),
-                        label: const Text(
-                          'Edit Profile & Goals',
-                          style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
-                        ),
-                        onPressed: _showEditProfileSheet,
+
+                    // Level & XP Progress
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface(context).withOpacity(0.8),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.cardBorder(context)),
                       ),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.bolt_rounded, color: AppColors.warning, size: 18),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Level $_userLevel • $_levelTitle',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.textPrimaryColor(context),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Text(
+                                '${(_levelProgress * 100).toInt()}% to Lvl ${_userLevel + 1}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: LinearProgressIndicator(
+                              value: _levelProgress.clamp(0.05, 1.0),
+                              minHeight: 6,
+                              backgroundColor: AppColors.surfaceVariant(context),
+                              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Action Buttons Row
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              elevation: 2,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            ),
+                            icon: const Icon(Icons.edit_outlined, size: 16),
+                            label: const Text(
+                              'Edit Profile',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                            onPressed: _showEditProfileSheet,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: 2,
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: AppColors.cardBorder(context)),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            ),
+                            icon: const Icon(Icons.copy_rounded, size: 15, color: AppColors.accentCyan),
+                            label: Text(
+                              'Copy Info',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                color: isDark ? AppColors.accentCyan : AppColors.primaryDark,
+                              ),
+                            ),
+                            onPressed: () {
+                              final summary = '${_profile.name} • ${_profile.role} (${_profile.occupationField})\nEmail: ${_profile.email}\nPhone: ${_profile.phoneNumber}\nFocus Target: ${_profile.dailyTargetHours}h/day';
+                              _copyToClipboard(summary, 'Profile Details');
+                            },
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 22),
+              const SizedBox(height: 20),
 
-              // 2. All-Time Productivity Highlights
-              Text(
-                'Productivity Milestones',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimaryColor(context),
+              // 2. Professional & Contact Info Card
+              _buildSectionHeader('Professional & Contact Information', Icons.contact_page_rounded),
+              const SizedBox(height: 10),
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.surface(context),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.cardBorder(context)),
+                ),
+                child: Column(
+                  children: [
+                    _contactTile(
+                      icon: Icons.phone_rounded,
+                      iconColor: AppColors.success,
+                      label: 'Phone Number',
+                      value: _profile.phoneNumber.isNotEmpty ? _profile.phoneNumber : 'Not set (Tap to add)',
+                      onCopy: () => _copyToClipboard(_profile.phoneNumber, 'Phone number'),
+                      onTap: _showEditProfileSheet,
+                    ),
+                    Divider(height: 1, color: AppColors.cardBorder(context)),
+                    _contactTile(
+                      icon: Icons.email_rounded,
+                      iconColor: AppColors.primary,
+                      label: 'Email Address',
+                      value: _profile.email,
+                      onCopy: () => _copyToClipboard(_profile.email, 'Email address'),
+                      onTap: _showEditProfileSheet,
+                    ),
+                    Divider(height: 1, color: AppColors.cardBorder(context)),
+                    _contactTile(
+                      icon: Icons.business_center_rounded,
+                      iconColor: AppColors.warning,
+                      label: 'Occupation & Industry',
+                      value: '${_profile.role} • ${_profile.occupationField}',
+                      onTap: _showEditProfileSheet,
+                    ),
+                    Divider(height: 1, color: AppColors.cardBorder(context)),
+                    _contactTile(
+                      icon: Icons.place_rounded,
+                      iconColor: AppColors.accentPink,
+                      label: 'Location / Region',
+                      value: _profile.location,
+                      onTap: _showEditProfileSheet,
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 20),
+
+              // 3. Social & Portfolio Links Card
+              _buildSectionHeader('Social & Portfolio Links', Icons.hub_rounded),
+              const SizedBox(height: 10),
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.surface(context),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.cardBorder(context)),
+                ),
+                child: Column(
+                  children: [
+                    _socialTile(
+                      icon: Icons.link_rounded,
+                      color: const Color(0xFF0077B5),
+                      label: 'LinkedIn',
+                      value: _profile.linkedinUrl.isNotEmpty ? _profile.linkedinUrl : 'Add LinkedIn link',
+                      onCopy: () => _copyToClipboard(_profile.linkedinUrl, 'LinkedIn URL'),
+                      onTap: _showEditProfileSheet,
+                    ),
+                    Divider(height: 1, color: AppColors.cardBorder(context)),
+                    _socialTile(
+                      icon: Icons.code_rounded,
+                      color: isDark ? Colors.white : const Color(0xFF24292E),
+                      label: 'GitHub',
+                      value: _profile.githubUrl.isNotEmpty ? _profile.githubUrl : 'Add GitHub profile',
+                      onCopy: () => _copyToClipboard(_profile.githubUrl, 'GitHub URL'),
+                      onTap: _showEditProfileSheet,
+                    ),
+                    Divider(height: 1, color: AppColors.cardBorder(context)),
+                    _socialTile(
+                      icon: Icons.language_rounded,
+                      color: AppColors.accentCyan,
+                      label: 'Portfolio / Website',
+                      value: _profile.portfolioUrl.isNotEmpty ? _profile.portfolioUrl : 'Add personal website',
+                      onCopy: () => _copyToClipboard(_profile.portfolioUrl, 'Portfolio URL'),
+                      onTap: _showEditProfileSheet,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // 4. Lifetime Productivity Milestones Grid
+              _buildSectionHeader('Lifetime Productivity Milestones', Icons.insights_rounded),
+              const SizedBox(height: 10),
               Row(
                 children: [
                   Expanded(
                     child: _statCard(
-                      'Focus Time',
+                      'Total Focus',
                       _formatHours(_totalFocusMinutes),
-                      Icons.timer_outlined,
+                      Icons.timer_rounded,
                       AppColors.primary,
+                      subtitle: 'Hours deep work',
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -497,8 +999,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: _statCard(
                       'Daily Target',
                       '${_profile.dailyTargetHours}h / day',
-                      Icons.flag_outlined,
+                      Icons.flag_rounded,
                       AppColors.accentCyan,
+                      subtitle: 'Commitment',
                     ),
                   ),
                 ],
@@ -510,8 +1013,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: _statCard(
                       'Goals Crushed',
                       '$_completedGoalsCount',
-                      Icons.check_circle_outline,
+                      Icons.task_alt_rounded,
                       AppColors.success,
+                      subtitle: 'Completed tasks',
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -519,8 +1023,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: _statCard(
                       'Badges Earned',
                       '$_unlockedBadgesCount / 6',
-                      Icons.military_tech_outlined,
+                      Icons.military_tech_rounded,
                       AppColors.warning,
+                      subtitle: 'Milestones',
                       onTap: () {
                         Navigator.push(
                           context,
@@ -533,70 +1038,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(height: 22),
 
-              // 3. User Badges & Achievements Preview
-              Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: AppColors.surface(context),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.cardBorder(context)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.workspace_premium, color: AppColors.warning, size: 22),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Achievements & Streaks',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.textPrimaryColor(context),
-                              ),
-                            ),
-                          ],
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (_) => const AchievementsScreen()),
-                            );
-                          },
-                          child: Text(
-                            'View All',
-                            style: TextStyle(color: isDark ? AppColors.accentCyan : AppColors.primary),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'You have unlocked $_unlockedBadgesCount badges! Keep completing daily time blocks and focus sessions to unlock more.',
-                      style: TextStyle(color: AppColors.textSecondaryColor(context), fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 22),
-
-              // 4. Quick Account Actions
-              Text(
-                'Preferences & Data',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimaryColor(context),
-                ),
-              ),
-              const SizedBox(height: 12),
+              // 5. Quick Account Actions
+              _buildSectionHeader('Account & Data Options', Icons.tune_rounded),
+              const SizedBox(height: 10),
               _actionTile(
-                icon: Icons.tune_rounded,
+                icon: Icons.settings_rounded,
                 title: 'App Settings & Privacy',
                 subtitle: 'Manage permissions, bedtime mode, and API keys',
                 onTap: () {
@@ -608,10 +1054,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(height: 8),
               _actionTile(
-                icon: Icons.calendar_month_outlined,
-                title: 'Daily Schedule & Time Blocks',
-                subtitle: 'Manage allocated task time slots and agenda',
-                onTap: () => Navigator.pop(context),
+                icon: Icons.military_tech_rounded,
+                title: 'Achievements & Streaks Showcase',
+                subtitle: 'View all trophies, badges, and consecutive habit records',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const AchievementsScreen()),
+                  );
+                },
               ),
               const SizedBox(height: 30),
             ],
@@ -621,16 +1072,173 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _statCard(String label, String value, IconData icon, Color color, {VoidCallback? onTap}) {
+  Widget _buildSectionHeader(String title, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: AppColors.primary),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+            color: AppColors.textPrimaryColor(context),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _contactTile({
+    required IconData icon,
+    required Color iconColor,
+    required String label,
+    required String value,
+    VoidCallback? onCopy,
+    VoidCallback? onTap,
+  }) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: iconColor.withOpacity(0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: iconColor, size: 18),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondaryColor(context),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimaryColor(context),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (onCopy != null)
+              IconButton(
+                icon: const Icon(Icons.copy_rounded, size: 16),
+                color: AppColors.textMutedColor(context),
+                onPressed: onCopy,
+                tooltip: 'Copy',
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _socialTile({
+    required IconData icon,
+    required Color color,
+    required String label,
+    required String value,
+    VoidCallback? onCopy,
+    VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: color, size: 18),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondaryColor(context),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimaryColor(context),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (onCopy != null)
+              IconButton(
+                icon: const Icon(Icons.copy_rounded, size: 16),
+                color: AppColors.textMutedColor(context),
+                onPressed: onCopy,
+                tooltip: 'Copy link',
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _statCard(
+    String label,
+    String value,
+    IconData icon,
+    Color color, {
+    String? subtitle,
+    VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppColors.surface(context),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(color: AppColors.cardBorder(context)),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.06),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -638,12 +1246,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Icon(icon, color: color, size: 22),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: color, size: 20),
+                ),
                 if (onTap != null)
-                  Icon(Icons.chevron_right, size: 18, color: AppColors.textMutedColor(context)),
+                  Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.textMutedColor(context)),
               ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             Text(
               value,
               style: TextStyle(
@@ -657,9 +1272,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
               label,
               style: TextStyle(
                 fontSize: 11,
+                fontWeight: FontWeight.w600,
                 color: AppColors.textSecondaryColor(context),
               ),
             ),
+            if (subtitle != null) ...[
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: AppColors.textMutedColor(context),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -675,17 +1301,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.cardBorder(context)),
       ),
       child: ListTile(
         onTap: onTap,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         leading: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: AppColors.surfaceVariant(context),
-            borderRadius: BorderRadius.circular(10),
+            color: AppColors.primary.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(12),
           ),
           child: Icon(icon, color: AppColors.primary, size: 20),
         ),
@@ -693,7 +1319,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           title,
           style: TextStyle(
             fontWeight: FontWeight.bold,
-            fontSize: 14,
+            fontSize: 13,
             color: AppColors.textPrimaryColor(context),
           ),
         ),
@@ -704,7 +1330,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             color: AppColors.textMutedColor(context),
           ),
         ),
-        trailing: const Icon(Icons.chevron_right, size: 20, color: Colors.grey),
+        trailing: Icon(Icons.chevron_right_rounded, size: 20, color: AppColors.textMutedColor(context)),
       ),
     );
   }

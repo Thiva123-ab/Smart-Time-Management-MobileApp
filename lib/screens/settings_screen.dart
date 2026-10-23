@@ -270,7 +270,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              '${_profile!.role} • ${_profile!.dailyTargetHours}h daily target',
+                              '${_profile!.role} • ${_profile!.occupationField} • ${_profile!.dailyTargetHours}h daily target',
                               style: TextStyle(
                                 color: AppColors.textSecondaryColor(context),
                                 fontSize: 12,
