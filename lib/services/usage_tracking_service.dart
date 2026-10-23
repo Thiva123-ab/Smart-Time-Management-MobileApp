@@ -49,6 +49,41 @@ class UsageTrackingService {
     } catch (_) {}
   }
 
+  static Future<void> setHardcoreStrictMode(bool enabled) async {
+    try {
+      await _channel.invokeMethod('setHardcoreStrictMode', {'enabled': enabled});
+    } catch (_) {}
+  }
+
+  static Future<bool> getHardcoreStrictMode() async {
+    try {
+      final bool? result = await _channel.invokeMethod('getHardcoreStrictMode');
+      return result ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<void> grantTemporaryPass(String packageName, {int minutes = 5}) async {
+    try {
+      await _channel.invokeMethod('grantTempPass', {
+        'packageName': packageName,
+        'minutes': minutes,
+      });
+    } catch (_) {}
+  }
+
+  static Future<int> getTempPassRemainingMinutes(String packageName) async {
+    try {
+      final int? result = await _channel.invokeMethod('getTempPassRemainingMinutes', {
+        'packageName': packageName,
+      });
+      return result ?? 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
   static Future<void> startBlockerService() async {
     try {
       await _channel.invokeMethod('startBlockerService');

@@ -139,6 +139,38 @@ class MainActivity : FlutterActivity() {
                     }
                     result.success(true)
                 }
+                "setHardcoreStrictMode" -> {
+                    val enabled = call.argument<Boolean>("enabled") ?: false
+                    val prefs = getSharedPreferences(AppBlockerService.PREFS_NAME, Context.MODE_PRIVATE)
+                    prefs.edit().putBoolean("strict_lock_enabled", enabled).apply()
+                    result.success(true)
+                }
+                "getHardcoreStrictMode" -> {
+                    val prefs = getSharedPreferences(AppBlockerService.PREFS_NAME, Context.MODE_PRIVATE)
+                    val enabled = prefs.getBoolean("strict_lock_enabled", false)
+                    result.success(enabled)
+                }
+                "grantTempPass" -> {
+                    val pkg = call.argument<String>("packageName") ?: ""
+                    val mins = call.argument<Int>("minutes") ?: 5
+                    if (pkg.isNotEmpty()) {
+                        val prefs = getSharedPreferences(AppBlockerService.PREFS_NAME, Context.MODE_PRIVATE)
+                        prefs.edit().putLong("temp_unlock_$pkg", System.currentTimeMillis() + mins * 60000L).apply()
+                    }
+                    result.success(true)
+                }
+                "getTempPassRemainingMinutes" -> {
+                    val pkg = call.argument<String>("packageName") ?: ""
+                    if (pkg.isNotEmpty()) {
+                        val prefs = getSharedPreferences(AppBlockerService.PREFS_NAME, Context.MODE_PRIVATE)
+                        val expiry = prefs.getLong("temp_unlock_$pkg", 0L)
+                        val diff = expiry - System.currentTimeMillis()
+                        val remaining = if (diff > 0) ((diff / 60000L) + 1).toInt() else 0
+                        result.success(remaining)
+                    } else {
+                        result.success(0)
+                    }
+                }
                 else -> {
                     result.notImplemented()
                 }

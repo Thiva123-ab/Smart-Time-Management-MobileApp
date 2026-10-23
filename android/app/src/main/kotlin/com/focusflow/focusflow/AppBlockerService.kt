@@ -98,6 +98,13 @@ class AppBlockerService : java.lang.Runnable, Service() {
         }
 
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+        // Check if temporary emergency pass is currently active for this package
+        val tempUnlockExpiry = prefs.getLong("temp_unlock_$currentForegroundPackage", 0L)
+        if (now < tempUnlockExpiry) {
+            return
+        }
+
         val limitMinutes = prefs.getInt(currentForegroundPackage, -1)
 
         if (limitMinutes > 0) {
