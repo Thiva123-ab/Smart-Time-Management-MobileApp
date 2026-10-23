@@ -328,39 +328,71 @@ class _HabitHeatmapWidgetState extends State<HabitHeatmapWidget> {
                   ),
                 ],
               ),
-              // Current Streak Badge
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: stats.currentStreak > 0
-                      ? Colors.orange.withValues(alpha: 0.15)
-                      : AppColors.surfaceVariant(context),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: stats.currentStreak > 0
-                        ? Colors.orange.withValues(alpha: 0.4)
-                        : AppColors.cardBorder(context),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.local_fire_department_rounded,
-                      size: 14,
-                      color: stats.currentStreak > 0 ? Colors.orange : AppColors.textMutedColor(context),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${stats.currentStreak} Day${stats.currentStreak == 1 ? '' : 's'}',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: stats.currentStreak > 0 ? Colors.orange : AppColors.textMutedColor(context),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (!widget.isCompact) ...[
+                    GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _selectedDaysCount = _selectedDaysCount == 35 ? 70 : 35;
+                        });
+                        _loadHeatmapData();
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        margin: const EdgeInsets.only(right: 6),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceVariant(context),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.cardBorder(context)),
+                        ),
+                        child: Text(
+                          _selectedDaysCount == 35 ? '5 Weeks' : '10 Weeks',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primaryLight,
+                          ),
+                        ),
                       ),
                     ),
                   ],
-                ),
+                  // Current Streak Badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: stats.currentStreak > 0
+                          ? Colors.orange.withValues(alpha: 0.15)
+                          : AppColors.surfaceVariant(context),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: stats.currentStreak > 0
+                            ? Colors.orange.withValues(alpha: 0.4)
+                            : AppColors.cardBorder(context),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.local_fire_department_rounded,
+                          size: 14,
+                          color: stats.currentStreak > 0 ? Colors.orange : AppColors.textMutedColor(context),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${stats.currentStreak} Day${stats.currentStreak == 1 ? '' : 's'}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: stats.currentStreak > 0 ? Colors.orange : AppColors.textMutedColor(context),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

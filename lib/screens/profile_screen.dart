@@ -5,6 +5,7 @@ import '../data/local/database_helper.dart';
 import '../data/models/user_profile.dart';
 import 'achievements_screen.dart';
 import 'settings_screen.dart';
+import '../widgets/habit_heatmap_widget.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -978,7 +979,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(height: 20),
 
-              // 4. Lifetime Productivity Milestones Grid
+              // 4. 30-Day Activity & Habit Consistency Matrix
+              _buildSectionHeader('30-Day Habit & Consistency Matrix', Icons.grid_view_rounded),
+              const SizedBox(height: 10),
+              const HabitHeatmapWidget(isCompact: true),
+              const SizedBox(height: 20),
+
+              // 5. Lifetime Productivity Milestones Grid
               _buildSectionHeader('Lifetime Productivity Milestones', Icons.insights_rounded),
               const SizedBox(height: 10),
               Row(
