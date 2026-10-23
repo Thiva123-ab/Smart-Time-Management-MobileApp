@@ -171,11 +171,37 @@ class MainActivity : FlutterActivity() {
                         result.success(0)
                     }
                 }
+                "playAmbientSound" -> {
+                    val sound = call.argument<String>("sound") ?: ""
+                    val volume = (call.argument<Double>("volume") ?: 0.7).toFloat()
+                    val success = FocusAudioEngine.playSound(this, sound, volume)
+                    result.success(success)
+                }
+                "stopAmbientSound" -> {
+                    FocusAudioEngine.stopSound()
+                    result.success(true)
+                }
+                "setAmbientVolume" -> {
+                    val volume = (call.argument<Double>("volume") ?: 0.7).toFloat()
+                    FocusAudioEngine.setVolume(volume)
+                    result.success(true)
+                }
+                "isAmbientPlaying" -> {
+                    result.success(FocusAudioEngine.isPlaying())
+                }
+                "getCurrentAmbientSound" -> {
+                    result.success(FocusAudioEngine.getCurrentSound())
+                }
                 else -> {
                     result.notImplemented()
                 }
             }
         }
+    }
+
+    override fun onDestroy() {
+        FocusAudioEngine.stopSound()
+        super.onDestroy()
     }
 
     private fun hasNotificationPermission(): Boolean {
