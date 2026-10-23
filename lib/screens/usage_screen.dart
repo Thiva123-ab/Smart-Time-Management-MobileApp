@@ -603,7 +603,7 @@ class _UsageScreenState extends State<UsageScreen> {
                                   child: Column(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Icon(Icons.search_off, size: 48, color: AppColors.textMutedColor(context).withOpacity(0.5)),
+                                      Icon(Icons.search_off, size: 48, color: AppColors.textMutedColor(context).withValues(alpha: 0.5)),
                                       const SizedBox(height: 12),
                                       Text(
                                         'No apps recorded for this day',
