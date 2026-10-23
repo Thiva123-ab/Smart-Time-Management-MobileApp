@@ -7,6 +7,7 @@ import '../data/models/time_budget.dart';
 import '../domain/app_category_manager.dart';
 import '../services/usage_tracking_service.dart';
 import '../widgets/app_icon_widget.dart';
+import '../widgets/friction_challenge_dialog.dart';
 
 class UsageScreen extends StatefulWidget {
   const UsageScreen({super.key});
@@ -26,6 +27,7 @@ class _UsageScreenState extends State<UsageScreen> {
   int _productiveMinutes = 0;
   int _distractingMinutes = 0;
   bool _isLoading = true;
+  bool _isStrictMode = false;
 
   final List<String> _categories = [
     'All',
@@ -43,7 +45,47 @@ class _UsageScreenState extends State<UsageScreen> {
   @override
   void initState() {
     super.initState();
+    _loadStrictMode();
     _loadDataForDate(_selectedDate);
+  }
+
+  Future<void> _loadStrictMode() async {
+    final strict = await UsageTrackingService.getHardcoreStrictMode();
+    if (mounted) setState(() => _isStrictMode = strict);
+  }
+
+  Future<void> _toggleStrictMode(bool val) async {
+    await UsageTrackingService.setHardcoreStrictMode(val);
+    if (mounted) {
+      setState(() => _isStrictMode = val);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(val
+              ? '🔒 Hardcore Strict Lock Enabled: Emergency bypasses completely blocked.'
+              : '⚡ Friction Pass Mode Enabled: Mental challenge unlocks 5-min temporary pass.'),
+          backgroundColor: val ? AppColors.danger : AppColors.primary,
+        ),
+      );
+    }
+  }
+
+  Future<void> _openFrictionPass(AppUsage app) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final result = await FrictionChallengeDialog.show(
+      context,
+      appName: app.appName,
+    );
+    if (result == true) {
+      await UsageTrackingService.grantTemporaryPass(app.packageName, minutes: 5);
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('⚡ 5-Minute emergency pass granted for ${app.appName}!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    }
   }
 
   bool _isSameDay(DateTime a, DateTime b) {
@@ -198,6 +240,7 @@ class _UsageScreenState extends State<UsageScreen> {
                 date: _dateString(_selectedDate),
                 enabled: true,
               );
+              final limitColor = AppColors.surfaceVariant(context);
               Navigator.pop(ctx);
               final messenger = ScaffoldMessenger.of(context);
 
@@ -212,7 +255,7 @@ class _UsageScreenState extends State<UsageScreen> {
               messenger.showSnackBar(
                 SnackBar(
                   content: Text('Daily limit active: $newLimit mins for ${app.appName} (will be blocked when exceeded)'),
-                  backgroundColor: AppColors.surfaceVariant(context),
+                  backgroundColor: limitColor,
                 ),
               );
 
@@ -367,6 +410,121 @@ class _UsageScreenState extends State<UsageScreen> {
               ),
             ),
 
+            // Hardcore Blocker & Friction Shield Card
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: isDark
+                        ? [
+                            _isStrictMode ? const Color(0xFF2A151A) : const Color(0xFF1B1933),
+                            const Color(0xFF121522),
+                          ]
+                        : [
+                            _isStrictMode ? const Color(0xFFFFF1F2) : const Color(0xFFF3F0FF),
+                            Colors.white,
+                          ],
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: _isStrictMode
+                        ? AppColors.danger.withValues(alpha: 0.5)
+                        : AppColors.primary.withValues(alpha: 0.35),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: (_isStrictMode ? AppColors.danger : AppColors.primary)
+                                .withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            _isStrictMode ? Icons.lock_clock_rounded : Icons.shield_rounded,
+                            size: 18,
+                            color: _isStrictMode ? AppColors.danger : AppColors.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _isStrictMode
+                                    ? 'Hardcore Strict Lock (Active)'
+                                    : 'Friction Shield (Active)',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textPrimaryColor(context),
+                                ),
+                              ),
+                              Text(
+                                _isStrictMode
+                                    ? 'Zero bypasses allowed. Uncompromising discipline.'
+                                    : 'Exceeded apps require cognitive friction test to unlock.',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: AppColors.textSecondaryColor(context),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Switch.adaptive(
+                          value: _isStrictMode,
+                          activeTrackColor: AppColors.danger.withValues(alpha: 0.5),
+                          activeThumbColor: AppColors.danger,
+                          onChanged: _toggleStrictMode,
+                        ),
+                      ],
+                    ),
+                    if (!_isStrictMode) ...[
+                      const SizedBox(height: 10),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          GestureDetector(
+                            onTap: () => FrictionChallengeDialog.show(context, appName: 'Practice Mode'),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: AppColors.surfaceVariant(context),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: AppColors.cardBorder(context)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.psychology_rounded, size: 13, color: AppColors.accentCyan),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Test Friction Barrier',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: isDark ? AppColors.accentCyan : AppColors.primaryDark,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+
             // Search Bar
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
@@ -402,7 +560,7 @@ class _UsageScreenState extends State<UsageScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
                 scrollDirection: Axis.horizontal,
                 itemCount: _categories.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
                 itemBuilder: (context, index) {
                   final cat = _categories[index];
                   final isSelected = cat == _selectedCategory;
@@ -605,6 +763,55 @@ class _UsageScreenState extends State<UsageScreen> {
                                           ),
                                         ),
                                       ),
+                                      if (isExceeded) ...[
+                                        const SizedBox(height: 8),
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                const Icon(Icons.lock_rounded, size: 12, color: AppColors.danger),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  _isStrictMode ? 'Hardcore Locked' : 'Daily Limit Exceeded',
+                                                  style: const TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: AppColors.danger,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            if (!_isStrictMode)
+                                              GestureDetector(
+                                                onTap: () => _openFrictionPass(app),
+                                                child: Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                                  decoration: BoxDecoration(
+                                                    color: AppColors.accentCyan.withValues(alpha: 0.15),
+                                                    borderRadius: BorderRadius.circular(10),
+                                                    border: Border.all(color: AppColors.accentCyan.withValues(alpha: 0.5)),
+                                                  ),
+                                                  child: const Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Icon(Icons.bolt_rounded, size: 12, color: AppColors.accentCyan),
+                                                      SizedBox(width: 3),
+                                                      Text(
+                                                        '5m Friction Pass',
+                                                        style: TextStyle(
+                                                          fontSize: 11,
+                                                          fontWeight: FontWeight.bold,
+                                                          color: AppColors.accentCyan,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ],
                                     ],
                                   ),
                                 );
@@ -655,7 +862,7 @@ class _UsageScreenState extends State<UsageScreen> {
                 border: Border.all(
                   color: isSelected
                       ? AppColors.primary
-                      : (isToday ? AppColors.primary.withOpacity(0.5) : AppColors.cardBorder(context)),
+                      : (isToday ? AppColors.primary.withValues(alpha: 0.5) : AppColors.cardBorder(context)),
                   width: isSelected ? 1.5 : 1,
                 ),
               ),
