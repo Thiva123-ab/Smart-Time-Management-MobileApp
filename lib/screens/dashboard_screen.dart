@@ -19,6 +19,7 @@ import 'focus_screen.dart';
 import 'profile_screen.dart';
 import 'ai_assistant_screen.dart';
 import '../widgets/app_icon_widget.dart';
+import '../widgets/night_routine_card.dart';
 
 class DashboardScreen extends StatefulWidget {
   final VoidCallback onStartFocus;
@@ -636,6 +637,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
               const SizedBox(height: 18),
+
+              // Bedtime Wind-Down & Night Routine Assistant
+              const NightRoutineCard(),
 
               // 3. Screen Time Breakdown Cards
               Row(
