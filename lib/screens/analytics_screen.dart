@@ -12,6 +12,7 @@ import '../domain/app_category_manager.dart';
 import '../domain/productivity_score_engine.dart';
 import '../services/usage_tracking_service.dart';
 import '../widgets/app_icon_widget.dart';
+import '../widgets/habit_heatmap_widget.dart';
 import '../services/sleep_tracking_service.dart';
 
 class UnifiedNoteItem {
@@ -761,6 +762,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
               // Interactive 7-Day Trend Chart
               _buildInteractive7DayChart(isDark),
+              const SizedBox(height: 16),
+
+              // 30-Day Activity & Habit Heatmap Matrix
+              const HabitHeatmapWidget(),
               const SizedBox(height: 16),
 
               // Selected Day In-Depth Quick Banner (Clickable!)
