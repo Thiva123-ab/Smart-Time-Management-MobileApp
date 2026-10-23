@@ -175,11 +175,11 @@ class NightRoutineCard extends StatelessWidget {
                       ),
                       onPressed: () async {
                         if (isTrackingSleep) {
-                          final block = await sleep.stopAndSaveTracking();
+                          final block = await sleep.wakeUpAndSave();
                           if (context.mounted && block != null) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text('🛌 Sleep recorded: ${block.durationMinutes} mins logged!'),
+                                content: Text('🛌 Sleep recorded: ${block.durationMinutes ~/ 60}h ${block.durationMinutes % 60}m logged!'),
                                 backgroundColor: AppColors.success,
                               ),
                             );

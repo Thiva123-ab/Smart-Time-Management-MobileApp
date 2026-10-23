@@ -6,6 +6,8 @@ import '../theme/theme_provider.dart';
 import '../data/local/database_helper.dart';
 import '../services/usage_tracking_service.dart';
 import '../services/data_export_service.dart';
+import '../services/bedtime_routine_service.dart';
+import '../widgets/bedtime_settings_sheet.dart';
 import '../data/models/user_profile.dart';
 import 'profile_screen.dart';
 
@@ -19,7 +21,6 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   UserProfile? _profile;
   bool _hasPermission = false;
-  bool _bedtimeMode = false;
   bool _dailyNotifications = true;
   String _geminiApiKey = '';
   final TextEditingController _apiKeyController = TextEditingController();
@@ -44,7 +45,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {
       _hasPermission = hasPerm;
       _profile = profile;
-      _bedtimeMode = prefs.getBool('bedtime_mode') ?? false;
       _dailyNotifications = prefs.getBool('daily_notifications') ?? true;
       _geminiApiKey = prefs.getString('gemini_api_key') ?? '';
       _apiKeyController.text = _geminiApiKey;
@@ -409,14 +409,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               child: Column(
                 children: [
-                  SwitchListTile(
-                    title: Text('Bedtime Wind-Down Mode', style: TextStyle(color: AppColors.textPrimaryColor(context), fontWeight: FontWeight.w600)),
-                    subtitle: Text('Dim screen & mute non-essential alerts after 10 PM', style: TextStyle(color: AppColors.textMutedColor(context), fontSize: 12)),
-                    value: _bedtimeMode,
-                    activeColor: AppColors.accentCyan,
-                    onChanged: (val) {
-                      setState(() => _bedtimeMode = val);
-                      _savePreference('bedtime_mode', val);
+                  Consumer<BedtimeRoutineService>(
+                    builder: (ctx, bedtime, _) {
+                      return ListTile(
+                        leading: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF6C5CE7).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.bedtime_rounded, color: Color(0xFF6C5CE7), size: 20),
+                        ),
+                        title: Text(
+                          'Bedtime & Night Routine Schedule',
+                          style: TextStyle(
+                            color: AppColors.textPrimaryColor(context),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                        subtitle: Text(
+                          'Target: ${bedtime.formattedBedtime} (${bedtime.leadMinutes}m wind-down) • Wake: ${bedtime.formattedWakeup}',
+                          style: TextStyle(color: AppColors.textMutedColor(context), fontSize: 12),
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Switch.adaptive(
+                              value: bedtime.isEnabled,
+                              activeTrackColor: AppColors.primary.withValues(alpha: 0.5),
+                              activeThumbColor: AppColors.primary,
+                              onChanged: (val) {
+                                bedtime.updateSettings(isEnabled: val);
+                              },
+                            ),
+                            const Icon(Icons.chevron_right_rounded, size: 20, color: AppColors.primary),
+                          ],
+                        ),
+                        onTap: () => BedtimeSettingsSheet.show(context),
+                      );
                     },
                   ),
                   Divider(color: AppColors.cardBorder(context), height: 1),
