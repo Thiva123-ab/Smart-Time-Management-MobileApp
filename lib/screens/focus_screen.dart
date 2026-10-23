@@ -925,6 +925,7 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
               ),
             ),
           ],
+          _buildAmbientAudioCard(),
         ],
       ),
     );
@@ -1059,8 +1060,105 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
               ),
             ],
           ),
+          _buildAmbientAudioCard(),
         ],
       ),
+    );
+  }
+
+  Widget _buildAmbientAudioCard() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Consumer<FocusAudioService>(
+      builder: (context, audio, _) {
+        final isPlaying = audio.isPlaying;
+        final active = audio.activeTrack;
+        return Container(
+          margin: const EdgeInsets.only(top: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF131826) : Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: isPlaying
+                  ? (isDark ? AppColors.accentCyan : AppColors.primary)
+                  : AppColors.cardBorder(context),
+              width: isPlaying ? 1.5 : 1.0,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color: (isPlaying
+                          ? (isDark ? AppColors.accentCyan : AppColors.primary)
+                          : AppColors.textSecondaryColor(context))
+                      .withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  isPlaying ? Icons.graphic_eq_rounded : Icons.headphones_outlined,
+                  color: isPlaying
+                      ? (isDark ? AppColors.accentCyan : AppColors.primary)
+                      : AppColors.textSecondaryColor(context),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isPlaying && active != null ? active.name : 'Focus Soundscape',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimaryColor(context),
+                      ),
+                    ),
+                    Text(
+                      isPlaying ? 'Binaural / Ambient Audio Active' : '40Hz Gamma, Alpha & Nature Audio',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textSecondaryColor(context),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (isPlaying)
+                IconButton(
+                  icon: const Icon(Icons.pause_circle_filled_rounded),
+                  color: isDark ? AppColors.accentCyan : AppColors.primary,
+                  iconSize: 28,
+                  tooltip: 'Pause Ambient Sound',
+                  onPressed: () => audio.stop(),
+                ),
+              TextButton.icon(
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  backgroundColor: AppColors.surfaceVariant(context),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: const Icon(Icons.tune_rounded, size: 15),
+                label: Text(
+                  isPlaying ? 'Adjust' : 'Choose',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                onPressed: () => AmbientSoundPlayerSheet.show(context),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

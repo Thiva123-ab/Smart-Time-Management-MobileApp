@@ -305,7 +305,7 @@ class _AmbientSoundPlayerSheetState extends State<AmbientSoundPlayerSheet> with 
                 child: ListView.separated(
                   physics: const BouncingScrollPhysics(),
                   itemCount: FocusAudioService.availableTracks.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  separatorBuilder: (ctx, i) => const SizedBox(height: 10),
                   itemBuilder: (context, index) {
                     final track = FocusAudioService.availableTracks[index];
                     final isThisActive = isPlaying && audio.activeTrackId == track.id;
