@@ -14,6 +14,8 @@ import '../services/schedule_notification_service.dart';
 import '../services/transport_tracking_service.dart';
 import '../services/urgent_task_tracking_service.dart';
 import '../services/sleep_tracking_service.dart';
+import '../services/ai_planner_service.dart';
+import '../widgets/smart_schedule_preview_dialog.dart';
 import 'focus_screen.dart';
 
 class TimePlannerScreen extends StatefulWidget {
@@ -105,6 +107,15 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
         curve: Curves.easeOut,
       );
     }
+  }
+
+  void _openAiAutoPlanner() {
+    SmartSchedulePreviewDialog.show(
+      context,
+      targetDate: _selectedDate,
+      existingBlocks: _blocks,
+      onApplied: () => _loadBlocks(),
+    );
   }
 
   void _syncTransportFromService() {
@@ -1844,6 +1855,11 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
             onPressed: () => _showAddOrEditNoteDialog(),
           ),
           IconButton(
+            icon: const Icon(Icons.auto_awesome_rounded, color: AppColors.accentCyan, size: 24),
+            tooltip: 'AI Auto-Planner',
+            onPressed: _openAiAutoPlanner,
+          ),
+          IconButton(
             icon: const Icon(Icons.add_circle, color: AppColors.primary, size: 28),
             tooltip: isPastDate ? 'Log Past Activity' : 'Add Time Block',
             onPressed: () => _showAddOrEditDialog(),
@@ -1954,12 +1970,44 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                                   color: AppColors.textPrimaryColor(context),
                                 ),
                               ),
-                              Text(
-                                '${_blocks.length} Tasks',
-                                style: TextStyle(
-                                  color: AppColors.textSecondaryColor(context),
-                                  fontSize: 13,
-                                ),
+                              Row(
+                                children: [
+                                  if (!isPastDate)
+                                    InkWell(
+                                      onTap: _openAiAutoPlanner,
+                                      borderRadius: BorderRadius.circular(10),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        margin: const EdgeInsets.only(right: 8),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.accentCyan.withValues(alpha: 0.15),
+                                          borderRadius: BorderRadius.circular(10),
+                                          border: Border.all(color: AppColors.accentCyan.withValues(alpha: 0.3)),
+                                        ),
+                                        child: const Row(
+                                          children: [
+                                            Icon(Icons.auto_awesome_rounded, size: 13, color: AppColors.accentCyan),
+                                            SizedBox(width: 4),
+                                            Text(
+                                              'AI Auto-Plan',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.bold,
+                                                color: AppColors.accentCyan,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  Text(
+                                    '${_blocks.length} Tasks',
+                                    style: TextStyle(
+                                      color: AppColors.textSecondaryColor(context),
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
@@ -4021,7 +4069,7 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.1),
+              color: AppColors.primary.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: const Icon(Icons.calendar_month, color: AppColors.primary, size: 40),
@@ -4045,8 +4093,27 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
             ),
           ),
           const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 0,
+              ),
+              icon: const Icon(Icons.auto_awesome_rounded, size: 20, color: Colors.white),
+              label: const Text(
+                'Auto-Plan Day with AI Assistant',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+              onPressed: _openAiAutoPlanner,
+            ),
+          ),
+          const SizedBox(height: 18),
           Text(
-            'Quick Suggested Blocks:',
+            'Or Add Quick Preset Blocks:',
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
