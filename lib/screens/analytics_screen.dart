@@ -14,6 +14,7 @@ import '../services/usage_tracking_service.dart';
 import '../widgets/app_icon_widget.dart';
 import '../widgets/habit_heatmap_widget.dart';
 import '../services/sleep_tracking_service.dart';
+import '../services/pdf_export_service.dart';
 
 class UnifiedNoteItem {
   final String id;
@@ -715,6 +716,12 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                     ),
                     const SizedBox(width: 6),
                     IconButton(
+                      onPressed: () => _showExportPdfDialog(context),
+                      icon: const Icon(Icons.picture_as_pdf_rounded),
+                      color: AppColors.accentCyan,
+                      tooltip: 'Export PDF Report',
+                    ),
+                    IconButton(
                       onPressed: _loadAllAnalytics,
                       icon: const Icon(Icons.refresh_rounded),
                       color: AppColors.primary,
@@ -766,6 +773,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
               // 30-Day Activity & Habit Heatmap Matrix
               const HabitHeatmapWidget(),
+              const SizedBox(height: 16),
+
+              // Executive PDF Export Card
+              _buildPdfExportCard(isDark),
               const SizedBox(height: 16),
 
               // Selected Day In-Depth Quick Banner (Clickable!)
@@ -4270,6 +4281,353 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildPdfExportCard(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isDark
+              ? [const Color(0xFF1E1B4B), const Color(0xFF0F172A)]
+              : [const Color(0xFFEEF2FF), const Color(0xFFE0F2FE)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: AppColors.accentCyan.withValues(alpha: 0.35),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.2),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.picture_as_pdf_rounded, color: AppColors.accentCyan, size: 24),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Productivity Audit & PDF Export',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimaryColor(context),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Generate an executive PDF with deep work trends & habit breakdowns.',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondaryColor(context),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              elevation: 0,
+            ),
+            icon: const Icon(Icons.download_rounded, size: 16),
+            label: const Text('Export', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            onPressed: () => _showExportPdfDialog(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showExportPdfDialog(BuildContext context) {
+    int selectedDays = 7;
+    String periodName = 'Weekly';
+    bool isGenerating = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          final isDark = Theme.of(ctx).brightness == Brightness.dark;
+
+          return Container(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF131826) : Colors.white,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              border: Border.all(color: AppColors.cardBorder(ctx)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.textMutedColor(ctx).withValues(alpha: 0.35),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.accentCyan.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(Icons.picture_as_pdf_rounded, color: AppColors.accentCyan, size: 24),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Export Productivity Audit',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimaryColor(ctx),
+                            ),
+                          ),
+                          Text(
+                            'High-resolution PDF report with stats & AI insights',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondaryColor(ctx),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'SELECT AUDIT TIMEFRAME',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.1,
+                    color: AppColors.textMutedColor(ctx),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        onTap: () {
+                          setSheetState(() {
+                            selectedDays = 7;
+                            periodName = 'Weekly';
+                          });
+                        },
+                        borderRadius: BorderRadius.circular(14),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: selectedDays == 7
+                                ? AppColors.primary.withValues(alpha: isDark ? 0.25 : 0.12)
+                                : AppColors.surface(ctx),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: selectedDays == 7 ? AppColors.primary : AppColors.cardBorder(ctx),
+                              width: selectedDays == 7 ? 1.8 : 1.0,
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    selectedDays == 7 ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+                                    size: 16,
+                                    color: selectedDays == 7 ? AppColors.primary : AppColors.textMutedColor(ctx),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Last 7 Days',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                      color: AppColors.textPrimaryColor(ctx),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Weekly performance & daily score table',
+                                style: TextStyle(fontSize: 10, color: AppColors.textSecondaryColor(ctx)),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: InkWell(
+                        onTap: () {
+                          setSheetState(() {
+                            selectedDays = 30;
+                            periodName = 'Monthly';
+                          });
+                        },
+                        borderRadius: BorderRadius.circular(14),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: selectedDays == 30
+                                ? AppColors.primary.withValues(alpha: isDark ? 0.25 : 0.12)
+                                : AppColors.surface(ctx),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: selectedDays == 30 ? AppColors.primary : AppColors.cardBorder(ctx),
+                              width: selectedDays == 30 ? 1.8 : 1.0,
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    selectedDays == 30 ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+                                    size: 16,
+                                    color: selectedDays == 30 ? AppColors.primary : AppColors.textMutedColor(ctx),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Last 30 Days',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                      color: AppColors.textPrimaryColor(ctx),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Monthly executive review & habit streaks',
+                                style: TextStyle(fontSize: 10, color: AppColors.textSecondaryColor(ctx)),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                if (isGenerating)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      child: Column(
+                        children: [
+                          CircularProgressIndicator(color: AppColors.accentCyan),
+                          SizedBox(height: 10),
+                          Text('Compiling vector PDF with charts & tables...', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                        ],
+                      ),
+                    ),
+                  )
+                else ...[
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        elevation: 0,
+                      ),
+                      icon: const Icon(Icons.print_rounded, size: 20),
+                      label: Text(
+                        'Preview & Print / Save PDF ($periodName)',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                      onPressed: () async {
+                        setSheetState(() => isGenerating = true);
+                        try {
+                          await PdfExportService.instance.previewOrPrintReport(
+                            context,
+                            days: selectedDays,
+                            periodName: periodName,
+                          );
+                        } finally {
+                          if (ctx.mounted) {
+                            Navigator.pop(ctx);
+                          }
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 46,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: AppColors.cardBorder(ctx)),
+                        foregroundColor: AppColors.textPrimaryColor(ctx),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      icon: const Icon(Icons.share_rounded, size: 18),
+                      label: const Text(
+                        'Share PDF Document',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                      onPressed: () async {
+                        setSheetState(() => isGenerating = true);
+                        try {
+                          await PdfExportService.instance.shareReport(
+                            days: selectedDays,
+                            periodName: periodName,
+                          );
+                        } finally {
+                          if (ctx.mounted) {
+                            Navigator.pop(ctx);
+                          }
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          );
+        },
       ),
     );
   }

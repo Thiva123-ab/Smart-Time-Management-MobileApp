@@ -6,6 +6,7 @@ import '../data/models/user_profile.dart';
 import 'achievements_screen.dart';
 import 'settings_screen.dart';
 import '../widgets/habit_heatmap_widget.dart';
+import '../services/pdf_export_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -1066,6 +1067,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const AchievementsScreen()),
+                  );
+                },
+              ),
+              const SizedBox(height: 8),
+              _actionTile(
+                icon: Icons.picture_as_pdf_rounded,
+                title: 'Export Productivity Audit (PDF)',
+                subtitle: 'Generate, print, or share your executive performance report',
+                onTap: () {
+                  PdfExportService.instance.previewOrPrintReport(
+                    context,
+                    days: 30,
+                    periodName: 'Monthly',
                   );
                 },
               ),

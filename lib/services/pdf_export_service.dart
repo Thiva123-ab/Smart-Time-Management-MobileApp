@@ -55,14 +55,12 @@ class PdfExportService {
     ''', [startDateStr, endDateStr]);
 
     // 4. Calculate total productive vs distracting app minutes
-    int totalAppMinutes = 0;
     int productiveAppMinutes = 0;
     int distractingAppMinutes = 0;
 
     for (final row in appUsageRows) {
       final mins = (row['totalMins'] as num?)?.toInt() ?? 0;
       final isProd = (row['isProductive'] as int?) == 1;
-      totalAppMinutes += mins;
       if (isProd) {
         productiveAppMinutes += mins;
       } else {
@@ -71,7 +69,7 @@ class PdfExportService {
     }
 
     // 5. Compute Grade
-    final avgScore = heatmapStats.averageScore.round();
+    final avgScore = heatmapStats.averageDailyScore.round();
     final grade = avgScore >= 90
         ? 'A+ Exceptional'
         : (avgScore >= 80
@@ -91,7 +89,7 @@ class PdfExportService {
             pw.SizedBox(height: 18),
             _buildExecutiveSummary(avgScore, grade, heatmapStats.totalFocusMinutes, heatmapStats.currentStreak, heatmapStats.activeDaysCount, days),
             pw.SizedBox(height: 20),
-            _buildDailyTable(heatmapStats.activities),
+            _buildDailyTable(heatmapStats.activityMap.values.toList()),
             pw.SizedBox(height: 20),
             _buildFocusAndAppBreakdown(focusRows, appUsageRows),
             pw.SizedBox(height: 20),
