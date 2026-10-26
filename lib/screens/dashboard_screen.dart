@@ -107,7 +107,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _score = scoreRes;
       _isLoading = false;
     });
-    WidgetSyncService.instance.syncWidgetData(overrideScore: scoreRes.overallScore);
+    WidgetSyncService.instance.syncWidgetData(overrideScore: scoreRes.totalScore);
   }
 
   String _formatTime(int minutes) {

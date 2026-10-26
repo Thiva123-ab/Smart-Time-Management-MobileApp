@@ -8,6 +8,7 @@ import '../services/usage_tracking_service.dart';
 import '../services/data_export_service.dart';
 import '../services/bedtime_routine_service.dart';
 import '../widgets/bedtime_settings_sheet.dart';
+import '../services/widget_sync_service.dart';
 import '../data/models/user_profile.dart';
 import 'profile_screen.dart';
 
@@ -206,6 +207,122 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }
             },
             child: const Text('Delete Everything'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showWidgetGuideDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface(context),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.widgets_rounded, color: AppColors.primary, size: 22),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              'Add Widget to Screen',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: AppColors.textPrimaryColor(context),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Follow these 3 quick steps on your Android device:',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondaryColor(context)),
+            ),
+            const SizedBox(height: 14),
+            _widgetStepRow(context, '1', 'Go to your phone\'s Home Screen.'),
+            _widgetStepRow(context, '2', 'Long-press any empty space and tap "Widgets".'),
+            _widgetStepRow(context, '3', 'Find "FocusFlow" and drag the widget to your screen.'),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceVariant(context),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.cardBorder(context)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.bolt_rounded, color: AppColors.accentCyan, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Tapping "Start Focus" on the widget launches your timer instantly with zero friction.',
+                      style: TextStyle(fontSize: 11, color: AppColors.textPrimaryColor(context)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Got It', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            icon: const Icon(Icons.sync, size: 16),
+            label: const Text('Sync Now'),
+            onPressed: () async {
+              await WidgetSyncService.instance.syncWidgetData();
+              if (ctx.mounted) {
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Widget refreshed with latest stats! ⚡'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _widgetStepRow(BuildContext context, String num, String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 10,
+            backgroundColor: AppColors.primary.withValues(alpha: 0.2),
+            child: Text(num, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(fontSize: 12.5, color: AppColors.textPrimaryColor(context)),
+            ),
           ),
         ],
       ),
@@ -460,6 +577,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       setState(() => _dailyNotifications = val);
                       _savePreference('daily_notifications', val);
                     },
+                  ),
+                  Divider(color: AppColors.cardBorder(context), height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.widgets_rounded, color: AppColors.accentCyan),
+                    title: Text('Home Screen Focus Widget', style: TextStyle(color: AppColors.textPrimaryColor(context), fontWeight: FontWeight.w600)),
+                    subtitle: Text('Score, streak & 1-tap focus launcher on your phone', style: TextStyle(color: AppColors.textMutedColor(context), fontSize: 12)),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.sync_rounded, size: 20, color: AppColors.primary),
+                          tooltip: 'Sync Widget Now',
+                          onPressed: () async {
+                            await WidgetSyncService.instance.syncWidgetData();
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Widget refreshed with latest stats! ⚡'),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                        const Icon(Icons.chevron_right_rounded, size: 20, color: Colors.grey),
+                      ],
+                    ),
+                    onTap: () => _showWidgetGuideDialog(context),
                   ),
                 ],
               ),
