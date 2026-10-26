@@ -8,6 +8,7 @@ import '../domain/pomodoro_engine.dart';
 import '../services/usage_tracking_service.dart';
 import '../services/urgent_task_tracking_service.dart';
 import '../services/focus_audio_service.dart';
+import '../services/widget_sync_service.dart';
 import '../widgets/ambient_sound_player_sheet.dart';
 
 class FocusScreen extends StatefulWidget {
@@ -107,6 +108,7 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
     });
 
     _focusTimer?.cancel();
+    WidgetSyncService.instance.syncWidgetData(isFocusing: true);
     _focusTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!_isFocusPaused) {
         setState(() {
@@ -144,6 +146,7 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
   Future<void> _resetFocusSession() async {
     _focusTimer?.cancel();
     FocusAudioService.instance.stop();
+    WidgetSyncService.instance.syncWidgetData(isFocusing: false);
     setState(() {
       _isFocusActive = false;
       _isFocusPaused = false;
@@ -193,6 +196,7 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
 
     await DatabaseHelper.instance.insertFocusSession(session);
     await _saveGoalProgress(markCompleted: completed);
+    WidgetSyncService.instance.syncWidgetData(isFocusing: false);
 
     setState(() {
       _isFocusActive = false;

@@ -20,6 +20,7 @@ import 'profile_screen.dart';
 import 'ai_assistant_screen.dart';
 import '../widgets/app_icon_widget.dart';
 import '../widgets/night_routine_card.dart';
+import '../services/widget_sync_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   final VoidCallback onStartFocus;
@@ -106,6 +107,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _score = scoreRes;
       _isLoading = false;
     });
+    WidgetSyncService.instance.syncWidgetData(overrideScore: scoreRes.overallScore);
   }
 
   String _formatTime(int minutes) {
