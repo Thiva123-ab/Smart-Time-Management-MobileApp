@@ -292,42 +292,52 @@ class _HabitHeatmapWidgetState extends State<HabitHeatmapWidget> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF6C5CE7), Color(0xFF00CEC9)],
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF6C5CE7), Color(0xFF00CEC9)],
+                        ),
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      borderRadius: BorderRadius.circular(10),
+                      child: const Icon(Icons.grid_view_rounded, size: 15, color: Colors.white),
                     ),
-                    child: const Icon(Icons.grid_view_rounded, size: 16, color: Colors.white),
-                  ),
-                  const SizedBox(width: 10),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.isCompact ? 'Habit Consistency' : '30-Day Activity Heatmap',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimaryColor(context),
-                          letterSpacing: -0.2,
-                        ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.isCompact ? 'Habit Consistency' : '30-Day Activity Heatmap',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimaryColor(context),
+                              letterSpacing: -0.2,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${stats.activeDaysCount} active days • ${stats.activityRate.toInt()}% consistency',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              color: AppColors.textSecondaryColor(context),
+                            ),
+                          ),
+                        ],
                       ),
-                      Text(
-                        '${stats.activeDaysCount} active days • ${stats.activityRate.toInt()}% consistency',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: AppColors.textSecondaryColor(context),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(width: 6),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -340,8 +350,8 @@ class _HabitHeatmapWidgetState extends State<HabitHeatmapWidget> {
                         _loadHeatmapData();
                       },
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        margin: const EdgeInsets.only(right: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
+                        margin: const EdgeInsets.only(right: 5),
                         decoration: BoxDecoration(
                           color: AppColors.surfaceVariant(context),
                           borderRadius: BorderRadius.circular(10),
@@ -350,7 +360,7 @@ class _HabitHeatmapWidgetState extends State<HabitHeatmapWidget> {
                         child: Text(
                           _selectedDaysCount == 35 ? '5 Weeks' : '10 Weeks',
                           style: const TextStyle(
-                            fontSize: 10,
+                            fontSize: 9.5,
                             fontWeight: FontWeight.bold,
                             color: AppColors.primaryLight,
                           ),
@@ -360,7 +370,7 @@ class _HabitHeatmapWidgetState extends State<HabitHeatmapWidget> {
                   ],
                   // Current Streak Badge
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: stats.currentStreak > 0
                           ? Colors.orange.withValues(alpha: 0.15)
@@ -377,14 +387,14 @@ class _HabitHeatmapWidgetState extends State<HabitHeatmapWidget> {
                       children: [
                         Icon(
                           Icons.local_fire_department_rounded,
-                          size: 14,
+                          size: 13,
                           color: stats.currentStreak > 0 ? Colors.orange : AppColors.textMutedColor(context),
                         ),
-                        const SizedBox(width: 4),
+                        const SizedBox(width: 3),
                         Text(
                           '${stats.currentStreak} Day${stats.currentStreak == 1 ? '' : 's'}',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 10.5,
                             fontWeight: FontWeight.bold,
                             color: stats.currentStreak > 0 ? Colors.orange : AppColors.textMutedColor(context),
                           ),
