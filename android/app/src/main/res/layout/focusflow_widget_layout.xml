@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/widget_bg"
+    android:padding="14dp">
+
+    <!-- Top Header Row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <!-- App Brand -->
+        <TextView
+            android:id="@+id/widget_brand_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="⚡ FOCUSFLOW"
+            android:textColor="#38BDF8"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.08" />
+
+        <!-- Status / Last Sync -->
+        <TextView
+            android:id="@+id/widget_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Sync OK"
+            android:textColor="#94A3B8"
+            android:textSize="10sp"
+            android:layout_marginEnd="8dp" />
+
+        <!-- Refresh Button -->
+        <TextView
+            android:id="@+id/widget_btn_refresh"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:gravity="center"
+            android:text="🔄"
+            android:textSize="12sp"
+            android:textColor="#E2E8F0" />
+    </LinearLayout>
+
+    <!-- Center Content Row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="8dp">
+
+        <!-- Score Badge Box -->
+        <LinearLayout
+            android:id="@+id/widget_score_box"
+            android:layout_width="74dp"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="@drawable/widget_score_badge"
+            android:padding="4dp">
+
+            <TextView
+                android:id="@+id/widget_score_value"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="85%"
+                android:textColor="#818CF8"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/widget_score_grade"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="GRADE A"
+                android:textColor="#C7D2FE"
+                android:textSize="8sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.05" />
+        </LinearLayout>
+
+        <!-- Right Side: Metrics List -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:layout_marginStart="12dp">
+
+            <!-- Focus Time -->
+            <TextView
+                android:id="@+id/widget_focus_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🎯 Deep Focus: 1h 45m"
+                android:textColor="#F1F5F9"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:maxLines="1" />
+
+            <!-- Daily Habit Streak -->
+            <TextView
+                android:id="@+id/widget_streak"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:text="🔥 Streak: 5 Days Active"
+                android:textColor="#34D399"
+                android:textSize="10.5sp"
+                android:maxLines="1" />
+
+            <!-- Completed Targets -->
+            <TextView
+                android:id="@+id/widget_tasks_done"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:text="✓ 3 Goals &amp; Tasks Done"
+                android:textColor="#94A3B8"
+                android:textSize="10sp"
+                android:maxLines="1" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Bottom Action Row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <!-- Start Focus CTA -->
+        <TextView
+            android:id="@+id/widget_btn_focus"
+            android:layout_width="0dp"
+            android:layout_height="32dp"
+            android:layout_weight="1.2"
+            android:gravity="center"
+            android:background="@drawable/widget_btn_focus_bg"
+            android:text="▶ START FOCUS"
+            android:textColor="#FFFFFF"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:layout_marginEnd="6dp" />
+
+        <!-- Open Dashboard CTA -->
+        <TextView
+            android:id="@+id/widget_btn_open"
+            android:layout_width="0dp"
+            android:layout_height="32dp"
+            android:layout_weight="0.8"
+            android:gravity="center"
+            android:background="@drawable/widget_btn_secondary_bg"
+            android:text="OPEN APP"
+            android:textColor="#E2E8F0"
+            android:textSize="10.5sp" />
+    </LinearLayout>
+</LinearLayout>

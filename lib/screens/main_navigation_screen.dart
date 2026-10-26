@@ -13,6 +13,7 @@ import 'ai_assistant_screen.dart';
 import 'achievements_screen.dart';
 import 'time_planner_screen.dart';
 import 'profile_screen.dart';
+import '../services/widget_sync_service.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -29,6 +30,20 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   void initState() {
     super.initState();
     _loadUserProfile();
+    WidgetSyncService.instance.initialize(onAction: (action) {
+      if (action == 'start_focus' && mounted) {
+        setState(() => _currentIndex = 2);
+      }
+    });
+    _checkWidgetLaunch();
+    WidgetSyncService.instance.syncWidgetData();
+  }
+
+  Future<void> _checkWidgetLaunch() async {
+    final action = await WidgetSyncService.instance.checkInitialWidgetAction();
+    if (action == 'start_focus' && mounted) {
+      setState(() => _currentIndex = 2);
+    }
   }
 
   Future<void> _loadUserProfile() async {

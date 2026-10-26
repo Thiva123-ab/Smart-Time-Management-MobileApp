@@ -23,11 +23,28 @@ import java.io.ByteArrayOutputStream
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.focusflow.app/usage"
+    private var pendingWidgetAction: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         TaskNotificationManager.initChannel(this)
         requestNotificationPermission()
+        handleWidgetIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleWidgetIntent(intent)
+    }
+
+    private fun handleWidgetIntent(intent: Intent?) {
+        val action = intent?.getStringExtra(FocusFlowWidgetProvider.EXTRA_WIDGET_ACTION)
+        if (!action.isNullOrEmpty()) {
+            pendingWidgetAction = action
+            flutterEngine?.dartExecutor?.binaryMessenger?.let { messenger ->
+                MethodChannel(messenger, CHANNEL).invokeMethod("onWidgetActionTriggered", action)
+            }
+        }
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -191,6 +208,34 @@ class MainActivity : FlutterActivity() {
                 }
                 "getCurrentAmbientSound" -> {
                     result.success(FocusAudioEngine.getCurrentSound())
+                }
+                "updateWidgetData" -> {
+                    val score = call.argument<Int>("score") ?: 85
+                    val grade = call.argument<String>("grade") ?: "Grade A"
+                    val focusMins = call.argument<Int>("focusMinutes") ?: 0
+                    val streakDays = call.argument<Int>("streakDays") ?: 1
+                    val tasksDone = call.argument<Int>("completedTasks") ?: 0
+                    val isFocusing = call.argument<Boolean>("isFocusing") ?: false
+                    val lastSync = call.argument<String>("lastSync") ?: ""
+
+                    val prefs = getSharedPreferences(FocusFlowWidgetProvider.PREFS_NAME, Context.MODE_PRIVATE)
+                    prefs.edit()
+                        .putInt(FocusFlowWidgetProvider.KEY_SCORE, score)
+                        .putString(FocusFlowWidgetProvider.KEY_GRADE, grade)
+                        .putInt(FocusFlowWidgetProvider.KEY_FOCUS_MINS, focusMins)
+                        .putInt(FocusFlowWidgetProvider.KEY_STREAK_DAYS, streakDays)
+                        .putInt(FocusFlowWidgetProvider.KEY_TASKS_DONE, tasksDone)
+                        .putBoolean(FocusFlowWidgetProvider.KEY_IS_FOCUSING, isFocusing)
+                        .putString(FocusFlowWidgetProvider.KEY_LAST_SYNC, lastSync)
+                        .apply()
+
+                    FocusFlowWidgetProvider.updateAllWidgets(this)
+                    result.success(true)
+                }
+                "getInitialWidgetAction" -> {
+                    val action = pendingWidgetAction
+                    pendingWidgetAction = null
+                    result.success(action)
                 }
                 else -> {
                     result.notImplemented()
