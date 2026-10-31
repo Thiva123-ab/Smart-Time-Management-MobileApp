@@ -3914,6 +3914,9 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
     int endMin = _timeToMinutes(block.endTime);
     if (endMin <= startMin) endMin += 24 * 60;
     final isRunningNow = isToday && !block.isCompleted && (currentMin >= startMin && currentMin < endMin);
+    final isElapsedOverdue = isToday && !block.isCompleted && (currentMin >= endMin);
+    final isStarted = isToday && !block.isCompleted && (currentMin >= startMin);
+    final elapsedMinutes = isStarted ? (currentMin - startMin) : 0;
 
     final subTasks = _subTasks[block.id] ?? [];
 
@@ -4247,6 +4250,162 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                                     ),
                                   );
                                 }),
+                              ],
+                            ),
+                          ),
+                        ],
+
+                        // Live in-progress time updater & extension for started task
+                        if (isRunningNow) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.timelapse, size: 15, color: AppColors.primary),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    'Started: ${elapsedMinutes}m elapsed of ${block.durationMinutes}m',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: isDark ? AppColors.accentCyan : AppColors.primaryDark,
+                                    ),
+                                  ),
+                                ),
+                                InkWell(
+                                  onTap: () async {
+                                    await DatabaseHelper.instance.extendTimeBlockDuration(block.id!, 15);
+                                    ScheduleNotificationService.instance.rescheduleNativeAlarms();
+                                    _loadBlocks();
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('⏱️ Extended "${block.title}" by +15 mins'),
+                                          duration: const Duration(seconds: 2),
+                                        ),
+                                      );
+                                    }
+                                  },
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary.withValues(alpha: 0.18),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: const Text(
+                                      '+15m',
+                                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                InkWell(
+                                  onTap: () async {
+                                    await DatabaseHelper.instance.extendTimeBlockDuration(block.id!, 30);
+                                    ScheduleNotificationService.instance.rescheduleNativeAlarms();
+                                    _loadBlocks();
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('⏱️ Extended "${block.title}" by +30 mins'),
+                                          duration: const Duration(seconds: 2),
+                                        ),
+                                      );
+                                    }
+                                  },
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary.withValues(alpha: 0.18),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: const Text(
+                                      '+30m',
+                                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+
+                        // Overdue / Time Elapsed banner with quick extension
+                        if (isElapsedOverdue) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.orange.withValues(alpha: 0.35)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.history_toggle_off_rounded, size: 16, color: Colors.orange),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    'Scheduled until ${block.endTime}. Need more time?',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: isDark ? Colors.orange[200] : Colors.orange[900],
+                                    ),
+                                  ),
+                                ),
+                                InkWell(
+                                  onTap: () async {
+                                    await DatabaseHelper.instance.extendTimeBlockDuration(block.id!, 15);
+                                    ScheduleNotificationService.instance.rescheduleNativeAlarms();
+                                    _loadBlocks();
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('⏱️ Extended "${block.title}" by +15 mins'),
+                                          duration: const Duration(seconds: 2),
+                                        ),
+                                      );
+                                    }
+                                  },
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: Colors.orange,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: const Text(
+                                      '+15m',
+                                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                InkWell(
+                                  onTap: () => _toggleBlockStatus(block),
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.success,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: const Text(
+                                      'Done',
+                                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+                                    ),
+                                  ),
+                                ),
                               ],
                             ),
                           ),
