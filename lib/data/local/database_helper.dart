@@ -482,6 +482,92 @@ class DatabaseHelper {
     );
   }
 
+  Future<TimeBlock?> getTimeBlockById(int id) async {
+    final db = await instance.database;
+    final result = await db.query(
+      'time_blocks',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    if (result.isNotEmpty) {
+      return TimeBlock.fromMap(result.first);
+    }
+    return null;
+  }
+
+  /// Safely update only the time fields (startTime, endTime, durationMinutes)
+  /// of a time block without modifying other attributes or deleting historical data.
+  Future<int> updateTimeBlockTimes(
+    int id, {
+    required String startTime,
+    required String endTime,
+    required int durationMinutes,
+  }) async {
+    final db = await instance.database;
+    return await db.update(
+      'time_blocks',
+      {
+        'startTime': startTime,
+        'endTime': endTime,
+        'durationMinutes': durationMinutes,
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// Extends an existing time block's duration by [additionalMinutes]
+  /// and automatically shifts the endTime, preserving all original block data.
+  Future<TimeBlock?> extendTimeBlockDuration(int id, int additionalMinutes) async {
+    final block = await getTimeBlockById(id);
+    if (block == null) return null;
+
+    final newDuration = block.durationMinutes + additionalMinutes;
+    final startMin = _parseTimeToMinutes(block.startTime);
+    final newEndMin = (startMin + newDuration) % (24 * 60);
+    final newEndTime = _minutesToTimeStr(newEndMin);
+
+    await updateTimeBlockTimes(
+      id,
+      startTime: block.startTime,
+      endTime: newEndTime,
+      durationMinutes: newDuration,
+    );
+
+    return block.copyWith(
+      endTime: newEndTime,
+      durationMinutes: newDuration,
+    );
+  }
+
+  static int _parseTimeToMinutes(String timeStr) {
+    try {
+      final clean = timeStr.replaceAll(RegExp(r'\s+'), ' ').trim();
+      final match = RegExp(r'^(\d{1,2}):(\d{2})(?:\s*([APap][Mm]))?').firstMatch(clean);
+      if (match != null) {
+        int h = int.parse(match.group(1)!);
+        int m = int.parse(match.group(2)!);
+        final period = match.group(3)?.toUpperCase();
+        if (period == 'PM' && h < 12) h += 12;
+        if (period == 'AM' && h == 12) h = 0;
+        return h * 60 + m;
+      }
+    } catch (_) {}
+    return 0;
+  }
+
+  static String _minutesToTimeStr(int totalMinutes) {
+    int normalized = totalMinutes % (24 * 60);
+    int hour = normalized ~/ 60;
+    int minute = normalized % 60;
+    String period = hour >= 12 ? 'PM' : 'AM';
+    int hour12 = hour % 12;
+    if (hour12 == 0) hour12 = 12;
+    String hStr = hour12.toString().padLeft(2, '0');
+    String mStr = minute.toString().padLeft(2, '0');
+    return '$hStr:$mStr $period';
+  }
+
   // Time Sub-Tasks (Urgent in-block allocations)
   Future<int> insertTimeSubTask(TimeSubTask subTask) async {
     final db = await instance.database;
