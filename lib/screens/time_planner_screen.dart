@@ -479,6 +479,14 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
     TimeOfDay endTime = defaultEnd;
 
     int calculatedDuration = _calculateDuration(startTime, endTime);
+    bool markCompleted = blockToEdit?.isCompleted ?? false;
+    if (blockToEdit == null) {
+      final initialEndMin = defaultEnd.hour * 60 + defaultEnd.minute;
+      final curWallMin = now.hour * 60 + now.minute;
+      if (isPast || (isToday && initialEndMin <= curWallMin)) {
+        markCompleted = true;
+      }
+    }
 
     showModalBottomSheet(
       context: context,
@@ -612,6 +620,85 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                         ),
                     ],
                   ),
+                  const SizedBox(height: 8),
+
+                  // Quick Presets (Past & Current Slots)
+                  if (isToday) ...[
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          ActionChip(
+                            avatar: const Icon(Icons.history_rounded, size: 14, color: Colors.amber),
+                            label: const Text('Past 30m', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                            backgroundColor: AppColors.surfaceVariant(context),
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            onPressed: () {
+                              final curMin = now.hour * 60 + now.minute;
+                              final sMin = (curMin - 30).clamp(0, 24 * 60 - 1);
+                              setSheetState(() {
+                                startTime = TimeOfDay(hour: sMin ~/ 60, minute: sMin % 60);
+                                endTime = TimeOfDay(hour: curMin ~/ 60, minute: curMin % 60);
+                                calculatedDuration = 30;
+                                markCompleted = true;
+                              });
+                            },
+                          ),
+                          const SizedBox(width: 6),
+                          ActionChip(
+                            avatar: const Icon(Icons.history_rounded, size: 14, color: Colors.amber),
+                            label: const Text('Past 1h', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                            backgroundColor: AppColors.surfaceVariant(context),
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            onPressed: () {
+                              final curMin = now.hour * 60 + now.minute;
+                              final sMin = (curMin - 60).clamp(0, 24 * 60 - 1);
+                              setSheetState(() {
+                                startTime = TimeOfDay(hour: sMin ~/ 60, minute: sMin % 60);
+                                endTime = TimeOfDay(hour: curMin ~/ 60, minute: curMin % 60);
+                                calculatedDuration = 60;
+                                markCompleted = true;
+                              });
+                            },
+                          ),
+                          const SizedBox(width: 6),
+                          ActionChip(
+                            avatar: const Icon(Icons.history_rounded, size: 14, color: Colors.amber),
+                            label: const Text('Past 2h', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                            backgroundColor: AppColors.surfaceVariant(context),
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            onPressed: () {
+                              final curMin = now.hour * 60 + now.minute;
+                              final sMin = (curMin - 120).clamp(0, 24 * 60 - 1);
+                              setSheetState(() {
+                                startTime = TimeOfDay(hour: sMin ~/ 60, minute: sMin % 60);
+                                endTime = TimeOfDay(hour: curMin ~/ 60, minute: curMin % 60);
+                                calculatedDuration = 120;
+                                markCompleted = true;
+                              });
+                            },
+                          ),
+                          const SizedBox(width: 6),
+                          ActionChip(
+                            avatar: const Icon(Icons.schedule, size: 14, color: AppColors.accentCyan),
+                            label: const Text('Next 1h', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                            backgroundColor: AppColors.surfaceVariant(context),
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            onPressed: () {
+                              final curMin = now.hour * 60 + now.minute;
+                              final eMin = (curMin + 60).clamp(0, 24 * 60 - 1);
+                              setSheetState(() {
+                                startTime = TimeOfDay(hour: curMin ~/ 60, minute: curMin % 60);
+                                endTime = TimeOfDay(hour: eMin ~/ 60, minute: eMin % 60);
+                                calculatedDuration = 60;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
                   const SizedBox(height: 10),
                   Row(
                     children: [
@@ -871,6 +958,95 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
                     ),
                   ),
+
+                  // Retroactive status banner & Completion toggle
+                  Builder(
+                    builder: (ctx) {
+                      final curMin = now.hour * 60 + now.minute;
+                      final endMin = endTime.hour * 60 + endTime.minute;
+                      final isPastSlot = isPast || (isToday && endMin <= curMin);
+
+                      return Container(
+                        margin: const EdgeInsets.only(top: 14),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: markCompleted
+                              ? AppColors.success.withValues(alpha: 0.12)
+                              : (isPastSlot ? Colors.amber.withValues(alpha: 0.12) : AppColors.surfaceVariant(context)),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: markCompleted
+                                ? AppColors.success.withValues(alpha: 0.4)
+                                : (isPastSlot ? Colors.amber.withValues(alpha: 0.35) : AppColors.cardBorder(context)),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              markCompleted
+                                  ? Icons.check_circle_rounded
+                                  : (isPastSlot ? Icons.history_rounded : Icons.radio_button_unchecked_rounded),
+                              color: markCompleted
+                                  ? AppColors.success
+                                  : (isPastSlot ? Colors.amber : AppColors.textMutedColor(context)),
+                              size: 22,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text(
+                                        'Mark as Completed',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                          color: AppColors.textPrimaryColor(context),
+                                        ),
+                                      ),
+                                      if (isPastSlot) ...[
+                                        const SizedBox(width: 6),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: Colors.amber.withValues(alpha: 0.2),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: Text(
+                                            'Past Slot',
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                              color: isDark ? Colors.amber[300] : Colors.amber[900],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                  Text(
+                                    isPastSlot
+                                        ? 'Log this past task directly as finished'
+                                        : 'Mark task as completed immediately upon saving',
+                                    style: TextStyle(fontSize: 11, color: AppColors.textSecondaryColor(context)),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Switch(
+                              value: markCompleted,
+                              activeColor: AppColors.success,
+                              onChanged: (val) {
+                                setSheetState(() => markCompleted = val);
+                              },
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
                   const SizedBox(height: 22),
 
                   // Save Button with real-time conflict handling
@@ -936,7 +1112,7 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                           startTime: _formatTimeOfDay(startTime),
                           endTime: _formatTimeOfDay(endTime),
                           durationMinutes: calculatedDuration,
-                          isCompleted: blockToEdit?.isCompleted ?? false,
+                          isCompleted: markCompleted,
                           notes: notesController.text.trim().isEmpty ? null : notesController.text.trim(),
                         );
 
