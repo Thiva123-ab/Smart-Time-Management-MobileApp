@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:intl/intl.dart';
 import '../data/local/database_helper.dart';
 import 'usage_tracking_service.dart';
+import 'widget_sync_service.dart';
 
 class ScheduleNotificationService {
   static final ScheduleNotificationService instance = ScheduleNotificationService._internal();
@@ -32,6 +33,7 @@ class ScheduleNotificationService {
   Future<void> cancelAlarmsForBlock(int blockId) async {
     await UsageTrackingService.cancelTaskAlarms(blockId);
     _notifiedKeys.removeWhere((k) => k.startsWith('${blockId}_'));
+    await WidgetSyncService.instance.syncWidgetData();
   }
 
   /// Re-syncs native AlarmManager exact alarms for all active tasks of today.
@@ -129,6 +131,8 @@ class ScheduleNotificationService {
         }
       }
     }
+
+    await WidgetSyncService.instance.syncWidgetData();
   }
 
   Future<void> _checkScheduleAndNotify() async {
