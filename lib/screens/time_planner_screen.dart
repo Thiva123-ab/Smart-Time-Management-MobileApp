@@ -624,22 +624,15 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                               initialTime: startTime,
                             );
                             if (picked != null) {
-                              final currentTime = DateTime.now();
-                              final pickedMinutes = picked.hour * 60 + picked.minute;
-                              final currentMinutes = currentTime.hour * 60 + currentTime.minute;
-
-                              if (isToday && pickedMinutes < currentMinutes) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Cannot select a past time for today. Start time must be from current time onwards.'),
-                                    backgroundColor: Colors.redAccent,
-                                  ),
-                                );
-                                return;
-                              }
-
                               setSheetState(() {
                                 startTime = picked;
+                                final sMin = startTime.hour * 60 + startTime.minute;
+                                final eMin = endTime.hour * 60 + endTime.minute;
+                                if (eMin <= sMin) {
+                                  // Automatically bump end time 30 mins ahead
+                                  final newEndMin = (sMin + 30).clamp(0, 24 * 60 - 1);
+                                  endTime = TimeOfDay(hour: (newEndMin ~/ 60) % 24, minute: newEndMin % 60);
+                                }
                                 calculatedDuration = _calculateDuration(startTime, endTime);
                               });
                             }
@@ -685,15 +678,14 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                               initialTime: endTime,
                             );
                             if (picked != null) {
-                              final currentTime = DateTime.now();
-                              final pickedMinutes = picked.hour * 60 + picked.minute;
-                              final currentMinutes = currentTime.hour * 60 + currentTime.minute;
-
-                              if (isToday && pickedMinutes <= currentMinutes) {
+                              final sMin = startTime.hour * 60 + startTime.minute;
+                              final eMin = picked.hour * 60 + picked.minute;
+                              if (eMin <= sMin) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                    content: Text('End time cannot be in the past.'),
+                                    content: Text('End time must be after start time.'),
                                     backgroundColor: Colors.redAccent,
+                                    duration: Duration(seconds: 2),
                                   ),
                                 );
                                 return;
@@ -907,21 +899,8 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                               return;
                             }
 
-                            // Check past time validation on submit for today
-                            final currentTime = DateTime.now();
                             final startMinutes = startTime.hour * 60 + startTime.minute;
-                            final currentMinutes = currentTime.hour * 60 + currentTime.minute;
                             final endMinutes = endTime.hour * 60 + endTime.minute;
-
-                            if (isToday && startMinutes < currentMinutes) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Start time cannot be in the past. Please select current time or later.'),
-                                  backgroundColor: Colors.redAccent,
-                                ),
-                              );
-                              return;
-                            }
 
                             if (endMinutes <= startMinutes) {
                               ScaffoldMessenger.of(context).showSnackBar(
