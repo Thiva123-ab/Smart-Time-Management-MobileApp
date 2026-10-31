@@ -273,6 +273,126 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
     );
   }
 
+  Future<void> _extendActiveFocusTime(int additionalMinutes) async {
+    setState(() {
+      _selectedDurationMinutes += additionalMinutes;
+    });
+
+    if (widget.timeBlockId != null) {
+      final updatedBlock = await DatabaseHelper.instance.extendTimeBlockDuration(
+        widget.timeBlockId!,
+        additionalMinutes,
+      );
+      if (updatedBlock != null && mounted) {
+        setState(() {
+          _linkedTimeBlock = updatedBlock;
+        });
+      }
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            widget.timeBlockId != null
+                ? '⏱️ Focus & Time Block extended by +$additionalMinutes mins (${_selectedDurationMinutes}m total)'
+                : '⏱️ Focus session extended by +$additionalMinutes mins (${_selectedDurationMinutes}m total)',
+          ),
+          duration: const Duration(seconds: 2),
+          backgroundColor: AppColors.primary,
+        ),
+      );
+    }
+  }
+
+  void _showCustomExtendDialog() {
+    int customMins = 15;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlgState) => AlertDialog(
+          backgroundColor: AppColors.surface(context),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text(
+            'Extend Focus Duration',
+            style: TextStyle(color: AppColors.textPrimaryColor(context), fontWeight: FontWeight.bold),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Add more minutes to your active session:',
+                style: TextStyle(color: AppColors.textSecondaryColor(context), fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    onPressed: () {
+                      if (customMins > 5) setDlgState(() => customMins -= 5);
+                    },
+                    icon: const Icon(Icons.remove_circle_outline),
+                    color: AppColors.primary,
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceVariant(context),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '+$customMins min',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimaryColor(context),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () {
+                      if (customMins < 120) setDlgState(() => customMins += 5);
+                    },
+                    icon: const Icon(Icons.add_circle_outline),
+                    color: AppColors.primary,
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () {
+                Navigator.pop(ctx);
+                _extendActiveFocusTime(customMins);
+              },
+              child: const Text('Extend Time'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExtendChip(String label, int mins) {
+    return ActionChip(
+      label: Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+      backgroundColor: AppColors.primary.withValues(alpha: 0.12),
+      labelStyle: const TextStyle(color: AppColors.primary),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      onPressed: () => _extendActiveFocusTime(mins),
+    );
+  }
+
   void _startUrgentInterruption() async {
     // Automatically pause active focus session so progress is safely preserved
     if (_isFocusActive && !_isFocusPaused) {
@@ -808,7 +928,71 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
               ),
             ),
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 20),
+
+          // Live Extender & Time Adjuster while session is active
+          if (_isFocusActive) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceVariant(context),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.cardBorder(context)),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.more_time_rounded, size: 16, color: AppColors.primary),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Extend Focus Time',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimaryColor(context),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (_linkedTimeBlock != null)
+                        Text(
+                          '🔗 ${_linkedTimeBlock!.startTime} - ${_linkedTimeBlock!.endTime}',
+                          style: const TextStyle(fontSize: 11, color: AppColors.accentTeal, fontWeight: FontWeight.bold),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildExtendChip('+5m', 5),
+                        const SizedBox(width: 6),
+                        _buildExtendChip('+10m', 10),
+                        const SizedBox(width: 6),
+                        _buildExtendChip('+15m', 15),
+                        const SizedBox(width: 6),
+                        _buildExtendChip('+30m', 30),
+                        const SizedBox(width: 6),
+                        ActionChip(
+                          avatar: const Icon(Icons.edit_calendar, size: 13, color: AppColors.accentCyan),
+                          label: const Text('Custom', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                          backgroundColor: AppColors.surface(context),
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          onPressed: _showCustomExtendDialog,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
 
           // Actions
           if (!_isFocusActive) ...[
