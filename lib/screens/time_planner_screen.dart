@@ -1527,6 +1527,62 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                     ],
                   ),
                 ),
+
+                // Conflict indicator inside quick adjust sheet
+                Builder(
+                  builder: (ctx) {
+                    final conflict = _findConflictingBlock(startMinutes, endMinutes, excludeId: block.id);
+                    if (conflict == null) return const SizedBox.shrink();
+
+                    return Container(
+                      margin: const EdgeInsets.only(top: 10),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.warning_amber_rounded, size: 18, color: Colors.amber),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Overlaps with "${conflict.title}" (${conflict.startTime} - ${conflict.endTime})',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? Colors.amber[200] : Colors.amber[900],
+                              ),
+                            ),
+                          ),
+                          InkWell(
+                            onTap: () {
+                              final confStartMin = _timeToMinutes(conflict.startTime);
+                              if (confStartMin > startMinutes) {
+                                setSheetState(() {
+                                  currentEnd = TimeOfDay(hour: confStartMin ~/ 60, minute: confStartMin % 60);
+                                  currentDuration = _calculateDuration(currentStart, currentEnd);
+                                });
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: Colors.amber,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text(
+                                'Fit Before',
+                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
                 const SizedBox(height: 20),
 
                 // Save updated time button
@@ -1545,6 +1601,16 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                     ),
                     onPressed: () async {
+                      if (endMinutes <= startMinutes) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('End time must be after start time.'),
+                            backgroundColor: Colors.redAccent,
+                          ),
+                        );
+                        return;
+                      }
+
                       final newStartStr = _formatTimeOfDay(currentStart);
                       final newEndStr = _formatTimeOfDay(currentEnd);
                       await DatabaseHelper.instance.updateTimeBlockTimes(

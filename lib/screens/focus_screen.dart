@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../data/local/database_helper.dart';
 import '../data/models/focus_session.dart';
+import '../data/models/time_block.dart';
 import '../domain/pomodoro_engine.dart';
 import '../services/usage_tracking_service.dart';
 import '../services/urgent_task_tracking_service.dart';
