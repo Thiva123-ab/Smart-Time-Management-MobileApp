@@ -300,7 +300,7 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
         _selectedDate.month == now.month &&
         _selectedDate.day == now.day;
 
-    // App usage is strictly analyzed ONLY for today (12:00 AM midnight to 11:59:59 PM / 24 hours max)
+    // App usage is strictly analyzed for today or loaded from database for past dates
     List<AppUsage> appUsages = [];
     if (isToday) {
       final rawUsages = await UsageTrackingService.fetchTodayUsage();
@@ -312,6 +312,8 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
         return u;
       }).toList();
       await DatabaseHelper.instance.replaceAppUsageForDate(dateStr, appUsages);
+    } else {
+      appUsages = await DatabaseHelper.instance.getUsageForDate(dateStr);
     }
 
     final startRange = _dateString(today.subtract(const Duration(days: 60)));
@@ -526,12 +528,30 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        blockToEdit == null ? 'Schedule Time Block' : 'Edit Time Block',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimaryColor(context),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              blockToEdit == null
+                                  ? (isPast ? 'Log Past Activity' : 'Schedule Time Block')
+                                  : (isPast ? 'Edit Past Activity' : 'Edit Time Block'),
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textPrimaryColor(context),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              DateFormat('EEEE, MMM d, yyyy').format(_selectedDate),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isPast ? Colors.amber[300] : AppColors.textSecondaryColor(context),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       IconButton(
@@ -1128,7 +1148,9 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                         _loadBlocks();
                       },
                       child: Text(
-                        blockToEdit == null ? 'Add to Schedule' : 'Update Time Block',
+                        blockToEdit == null
+                            ? (isPast ? 'Save Past Activity' : 'Add to Schedule')
+                            : (isPast ? 'Update Past Activity' : 'Update Time Block'),
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                       ),
                     ),
