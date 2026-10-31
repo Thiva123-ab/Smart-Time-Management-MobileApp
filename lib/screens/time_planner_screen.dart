@@ -1247,6 +1247,345 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
     );
   }
 
+  void _showQuickTimeAdjustSheet(TimeBlock block) {
+    if (block.id == null) return;
+    TimeOfDay currentStart = _parseTimeOfDay(block.startTime);
+    TimeOfDay currentEnd = _parseTimeOfDay(block.endTime);
+    int currentDuration = block.durationMinutes;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+          final startMinutes = currentStart.hour * 60 + currentStart.minute;
+          final endMinutes = currentEnd.hour * 60 + currentEnd.minute;
+          final calculatedMins = (endMinutes - startMinutes) > 0 ? (endMinutes - startMinutes) : currentDuration;
+
+          return Container(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+              top: 20,
+              left: 20,
+              right: 20,
+            ),
+            decoration: BoxDecoration(
+              color: AppColors.surface(context),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.schedule, color: AppColors.primary, size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Update Block Time',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimaryColor(context),
+                            ),
+                          ),
+                          Text(
+                            block.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 13, color: AppColors.textSecondaryColor(context)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Quick Increment / Decrement Row
+                Text(
+                  'Quick Adjust Duration',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondaryColor(context),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _buildQuickAdjustChip('+15m', 15, currentStart, currentEnd, setSheetState, (s, e, d) {
+                      currentStart = s;
+                      currentEnd = e;
+                      currentDuration = d;
+                    }),
+                    _buildQuickAdjustChip('+30m', 30, currentStart, currentEnd, setSheetState, (s, e, d) {
+                      currentStart = s;
+                      currentEnd = e;
+                      currentDuration = d;
+                    }),
+                    _buildQuickAdjustChip('+45m', 45, currentStart, currentEnd, setSheetState, (s, e, d) {
+                      currentStart = s;
+                      currentEnd = e;
+                      currentDuration = d;
+                    }),
+                    _buildQuickAdjustChip('+60m', 60, currentStart, currentEnd, setSheetState, (s, e, d) {
+                      currentStart = s;
+                      currentEnd = e;
+                      currentDuration = d;
+                    }),
+                    _buildQuickAdjustChip('-15m', -15, currentStart, currentEnd, setSheetState, (s, e, d) {
+                      currentStart = s;
+                      currentEnd = e;
+                      currentDuration = d;
+                    }),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Start Time & End Time Pickers
+                Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        onTap: () async {
+                          final picked = await showTimePicker(
+                            context: context,
+                            initialTime: currentStart,
+                          );
+                          if (picked != null) {
+                            setSheetState(() {
+                              currentStart = picked;
+                              final sMin = currentStart.hour * 60 + currentStart.minute;
+                              final eMin = currentEnd.hour * 60 + currentEnd.minute;
+                              if (eMin <= sMin) {
+                                final newEndMin = (sMin + 30).clamp(0, 24 * 60 - 1);
+                                currentEnd = TimeOfDay(hour: (newEndMin ~/ 60) % 24, minute: newEndMin % 60);
+                              }
+                              currentDuration = _calculateDuration(currentStart, currentEnd);
+                            });
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceVariant(context),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.cardBorder(context)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Start Time', style: TextStyle(fontSize: 11, color: AppColors.textMutedColor(context))),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  const Icon(Icons.access_time, size: 16, color: AppColors.primary),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    _formatTimeOfDay(currentStart),
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimaryColor(context)),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: InkWell(
+                        onTap: () async {
+                          final picked = await showTimePicker(
+                            context: context,
+                            initialTime: currentEnd,
+                          );
+                          if (picked != null) {
+                            final sMin = currentStart.hour * 60 + currentStart.minute;
+                            final eMin = picked.hour * 60 + picked.minute;
+                            if (eMin <= sMin) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('End time must be after start time.'),
+                                  backgroundColor: Colors.redAccent,
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                              return;
+                            }
+                            setSheetState(() {
+                              currentEnd = picked;
+                              currentDuration = _calculateDuration(currentStart, currentEnd);
+                            });
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceVariant(context),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.cardBorder(context)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('End Time', style: TextStyle(fontSize: 11, color: AppColors.textMutedColor(context))),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  const Icon(Icons.access_time_filled, size: 16, color: AppColors.accentCyan),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    _formatTimeOfDay(currentEnd),
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimaryColor(context)),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.timelapse, size: 16, color: AppColors.primary),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Total Allocated: ${_formatMinutes(calculatedMins)}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? AppColors.accentTeal : AppColors.primaryDark,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Save updated time button
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    icon: const Icon(Icons.check, size: 18),
+                    label: const Text(
+                      'Apply Updated Time',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                    onPressed: () async {
+                      final newStartStr = _formatTimeOfDay(currentStart);
+                      final newEndStr = _formatTimeOfDay(currentEnd);
+                      await DatabaseHelper.instance.updateTimeBlockTimes(
+                        block.id!,
+                        startTime: newStartStr,
+                        endTime: newEndStr,
+                        durationMinutes: calculatedMins,
+                      );
+                      ScheduleNotificationService.instance.rescheduleNativeAlarms();
+                      Navigator.pop(ctx);
+                      _loadBlocks();
+
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('⏱️ Updated "${block.title}" to $newStartStr - $newEndStr'),
+                            backgroundColor: AppColors.primary,
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildQuickAdjustChip(
+    String label,
+    int deltaMinutes,
+    TimeOfDay curStart,
+    TimeOfDay curEnd,
+    StateSetter setSheetState,
+    void Function(TimeOfDay start, TimeOfDay end, int duration) onUpdate,
+  ) {
+    return ActionChip(
+      label: Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+      backgroundColor: deltaMinutes > 0 ? AppColors.primary.withValues(alpha: 0.12) : Colors.orange.withValues(alpha: 0.12),
+      labelStyle: TextStyle(
+        color: deltaMinutes > 0 ? AppColors.primary : Colors.orange[800],
+      ),
+      onPressed: () {
+        final startMin = curStart.hour * 60 + curStart.minute;
+        final curEndMin = curEnd.hour * 60 + curEnd.minute;
+        int newEndMin = curEndMin + deltaMinutes;
+        if (newEndMin <= startMin + 5) {
+          newEndMin = startMin + 5;
+        }
+        if (newEndMin > 24 * 60) newEndMin = 24 * 60;
+        final newEnd = TimeOfDay(hour: (newEndMin ~/ 60) % 24, minute: newEndMin % 60);
+        final newDuration = newEndMin - startMin;
+
+        setSheetState(() {
+          onUpdate(curStart, newEnd, newDuration);
+        });
+      },
+    );
+  }
+
   Future<void> _toggleSubTask(TimeSubTask subTask) async {
     if (subTask.id == null) return;
     final willComplete = !subTask.isCompleted;
@@ -3682,20 +4021,32 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                                       ],
                                     ),
                                   ),
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(Icons.access_time, size: 12, color: AppColors.textMutedColor(context)),
-                                      const SizedBox(width: 3),
-                                      Text(
-                                        '${block.startTime} - ${block.endTime}',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
-                                          color: AppColors.textSecondaryColor(context),
-                                        ),
+                                  GestureDetector(
+                                    onTap: () => _showQuickTimeAdjustSheet(block),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.surfaceVariant(context).withValues(alpha: 0.6),
+                                        borderRadius: BorderRadius.circular(6),
                                       ),
-                                    ],
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.access_time, size: 12, color: AppColors.textMutedColor(context)),
+                                          const SizedBox(width: 3),
+                                          Text(
+                                            '${block.startTime} - ${block.endTime}',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: AppColors.textSecondaryColor(context),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 2),
+                                          Icon(Icons.edit_outlined, size: 10, color: AppColors.textMutedColor(context)),
+                                        ],
+                                      ),
+                                    ),
                                   ),
                                   if (isRunningNow)
                                     Container(
@@ -4011,6 +4362,36 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
                               color: isDark ? Colors.amber[300] : Colors.amber[800],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(width: 4),
+
+                  // Quick Time Adjust Button
+                  InkWell(
+                    onTap: () => _showQuickTimeAdjustSheet(block),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.timer_outlined, size: 15, color: AppColors.primary),
+                          const SizedBox(width: 3),
+                          Text(
+                            'Adjust Time',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? AppColors.accentCyan : AppColors.primary,
                             ),
                           ),
                         ],
