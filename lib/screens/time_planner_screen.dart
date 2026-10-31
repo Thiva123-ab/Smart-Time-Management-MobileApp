@@ -1241,10 +1241,11 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
         builder: (_) => FocusScreen(
           initialTask: block.title,
           initialDurationMinutes: block.durationMinutes,
+          timeBlockId: block.id,
           autoStartFocus: true,
         ),
       ),
-    );
+    ).then((_) => _loadBlocks());
   }
 
   void _showQuickTimeAdjustSheet(TimeBlock block) {

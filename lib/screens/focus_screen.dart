@@ -16,6 +16,7 @@ class FocusScreen extends StatefulWidget {
   final int? initialDurationMinutes;
   final int? initialElapsedSeconds;
   final int? goalId;
+  final int? timeBlockId;
   final bool autoStartFocus;
 
   const FocusScreen({
@@ -24,6 +25,7 @@ class FocusScreen extends StatefulWidget {
     this.initialDurationMinutes,
     this.initialElapsedSeconds,
     this.goalId,
+    this.timeBlockId,
     this.autoStartFocus = false,
   });
 
@@ -49,6 +51,7 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
   Timer? _pomodoroTimer;
 
   final List<int> _durationPresets = [15, 25, 45, 60, 90];
+  TimeBlock? _linkedTimeBlock;
 
   @override
   void initState() {
@@ -65,11 +68,24 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
     if (widget.initialElapsedSeconds != null && widget.initialElapsedSeconds! > 0) {
       _focusElapsedSeconds = widget.initialElapsedSeconds!;
     }
+    if (widget.timeBlockId != null) {
+      _loadLinkedTimeBlock();
+    }
     if (widget.autoStartFocus) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           _startFocusSession(resume: _focusElapsedSeconds > 0);
         }
+      });
+    }
+  }
+
+  Future<void> _loadLinkedTimeBlock() async {
+    if (widget.timeBlockId == null) return;
+    final block = await DatabaseHelper.instance.getTimeBlockById(widget.timeBlockId!);
+    if (mounted && block != null) {
+      setState(() {
+        _linkedTimeBlock = block;
       });
     }
   }
@@ -196,6 +212,9 @@ class _FocusScreenState extends State<FocusScreen> with SingleTickerProviderStat
 
     await DatabaseHelper.instance.insertFocusSession(session);
     await _saveGoalProgress(markCompleted: completed);
+    if (widget.timeBlockId != null && completed) {
+      await DatabaseHelper.instance.toggleTimeBlock(widget.timeBlockId!, true);
+    }
     WidgetSyncService.instance.syncWidgetData(isFocusing: false);
 
     setState(() {
