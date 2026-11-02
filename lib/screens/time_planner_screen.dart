@@ -4556,30 +4556,101 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
 
             // Action row
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
                 color: AppColors.surfaceVariant(context).withValues(alpha: 0.5),
                 borderRadius: const BorderRadius.vertical(bottom: Radius.circular(18)),
               ),
               child: Row(
                 children: [
-                  // Quick Start Focus Session button
-                  InkWell(
-                    onTap: () => _startFocusForBlock(block),
-                    borderRadius: BorderRadius.circular(8),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.play_circle_fill, size: 16, color: AppColors.primary),
+                          // Quick Start Focus Session button
+                          InkWell(
+                            onTap: () => _startFocusForBlock(block),
+                            borderRadius: BorderRadius.circular(8),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.play_circle_fill, size: 16, color: AppColors.primary),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Focus',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: isDark ? AppColors.accentCyan : AppColors.primary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+
                           const SizedBox(width: 4),
-                          Text(
-                            'Focus',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: isDark ? AppColors.accentCyan : AppColors.primary,
+
+                          // Urgent Time Slot Allocation Button
+                          InkWell(
+                            onTap: () => _showUrgentActionSheet(block),
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.flash_on_rounded, size: 15, color: Colors.amber),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    '+ Urgent',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: isDark ? Colors.amber[300] : Colors.amber[800],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(width: 4),
+
+                          // Quick Time Adjust Button
+                          InkWell(
+                            onTap: () => _showQuickTimeAdjustSheet(block),
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.timer_outlined, size: 15, color: AppColors.primary),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    'Adjust Time',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: isDark ? AppColors.accentCyan : AppColors.primary,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ],
@@ -4588,66 +4659,6 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                   ),
 
                   const SizedBox(width: 4),
-
-                  // Urgent Time Slot Allocation Button
-                  InkWell(
-                    onTap: () => _showUrgentActionSheet(block),
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: Colors.amber.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.flash_on_rounded, size: 15, color: Colors.amber),
-                          const SizedBox(width: 3),
-                          Text(
-                            '+ Urgent',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: isDark ? Colors.amber[300] : Colors.amber[800],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(width: 4),
-
-                  // Quick Time Adjust Button
-                  InkWell(
-                    onTap: () => _showQuickTimeAdjustSheet(block),
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.timer_outlined, size: 15, color: AppColors.primary),
-                          const SizedBox(width: 3),
-                          Text(
-                            'Adjust Time',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: isDark ? AppColors.accentCyan : AppColors.primary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  const Spacer(),
 
                   // Edit Button
                   IconButton(
@@ -4656,11 +4667,11 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                     tooltip: 'Edit',
                     onPressed: () => _showAddOrEditDialog(blockToEdit: block),
                     visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.all(6),
+                    padding: const EdgeInsets.all(5),
                     constraints: const BoxConstraints(),
                   ),
 
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 4),
 
                   // Delete Button - strictly inside card box with safe spacing
                   IconButton(
@@ -4669,7 +4680,7 @@ class _TimePlannerScreenState extends State<TimePlannerScreen> {
                     tooltip: 'Delete',
                     onPressed: () => _deleteBlock(block.id!),
                     visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.all(6),
+                    padding: const EdgeInsets.all(5),
                     constraints: const BoxConstraints(),
                   ),
                 ],
